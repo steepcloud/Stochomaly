@@ -1,14 +1,22 @@
 import numpy as np
 from nn_core.neural_network import NeuralNetwork
+from plot_utils import plot_loss
 
-# Example dataset (XOR problem)
-X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-y = np.array([[0], [1], [1], [0]])
+class Trainer:
+    def __init__(self, input_size=2, hidden_size=4, output_size=1,
+                 activation="relu", optimizer="adam", learning_rate=0.01):
+        """Initialize the trainer with hyperparameters."""
+        self.nn = NeuralNetwork(input_size, hidden_size, output_size,
+                                activation=activation, optimizer=optimizer,
+                                learning_rate=learning_rate)
 
-# Initialize and train the network
-nn = NeuralNetwork(input_size=2, hidden_size=4, output_size=1, learning_rate=0.1)
-nn.train(X, y, epochs=1000)
+    def train(self, X, y, epochs=1000, save_plot=True):
+        """Trains the neural network and optionally saves a loss plot."""
+        loss_history = self.nn.train(X, y, epochs=epochs, return_loss=True)
+        if save_plot:
+            plot_loss(loss_history, self.nn.optimizer, self.nn.activation)
+        return loss_history
 
-# Predictions
-predictions = nn.predict(X)
-print("Predictions:\n", predictions)
+    def predict(self, X):
+        """Predicts using the trained neural network."""
+        return self.nn.predict(X)

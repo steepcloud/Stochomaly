@@ -1,5 +1,7 @@
 import numpy as np
 from nn_core.activations import sigmoid, relu, leaky_relu, elu, swish, gelu
+from nn_core.activations import sigmoid_derivative, relu_derivative, leaky_relu_derivative, elu_derivative, \
+    swish_derivative, gelu_derivative
 from nn_core.losses import mse_loss
 from nn_core.optimizers import SGD, Momentum, RMSprop, Adam
 
@@ -9,7 +11,8 @@ class NeuralNetwork:
     def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01):
         """Initialize weights, biases, activation functions, and optimizers."""
         self.learning_rate = learning_rate
-        self.activation_func = self.get_activation(activation)
+        self.activation = activation
+        self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer)
 
         self.weights_input_hidden = np.random.randn(input_size, hidden_size) * 0.01
@@ -17,17 +20,17 @@ class NeuralNetwork:
         self.weights_hidden_output = np.random.randn(hidden_size, output_size) * 0.01
         self.bias_output = np.zeros((1, output_size))
 
-    def get_activation(self, name):
-        """Returns the selected activation function."""
-        activations = {
-            "sigmoid": sigmoid,
-            "relu": relu,
-            "leaky_relu": leaky_relu,
-            "elu": elu,
-            "swish": swish,
-            "gelu": gelu
+    def get_activation_pair(self, name):
+        """Returns both activation function and its derivative."""
+        pairs = {
+            "sigmoid": (sigmoid, sigmoid_derivative),
+            "relu": (relu, relu_derivative),
+            "leaky_relu": (leaky_relu, leaky_relu_derivative),
+            "elu": (elu, elu_derivative),
+            "swish": (swish, swish_derivative),
+            "gelu": (gelu, gelu_derivative)
         }
-        return activations.get(name, relu)  # Default to ReLU if invalid
+        return pairs.get(name, (relu, relu_derivative))  # Default to ReLU if invalid
 
     def get_optimizer(self, name):
         """Returns the selected optimizer."""
@@ -46,27 +49,40 @@ class NeuralNetwork:
         return self.output_layer
 
     def backward(self, X, y):
-        """Backward propagation with selectable optimizer."""
+        """Backward propagation with shape-aware bias handling."""
+        # Forward pass results should already be stored in self.hidden_layer and self.output_layer
+
+        # Output layer gradients
         output_error = self.output_layer - y
-        output_delta = output_error * (self.output_layer * (1 - self.output_layer))  # Sigmoid derivative
+        output_delta = output_error * (self.output_layer * (1 - self.output_layer))
 
+        # Hidden layer gradients
         hidden_error = np.dot(output_delta, self.weights_hidden_output.T)
-        hidden_delta = hidden_error * (self.hidden_layer * (1 - self.hidden_layer))
+        hidden_delta = hidden_error * self.activation_derivative(self.hidden_layer)
 
-        # Update weights using optimizer
-        self.weights_hidden_output = self.optimizer.update(self.weights_hidden_output, np.dot(self.hidden_layer.T, output_delta))
-        self.bias_output = self.optimizer.update(self.bias_output, np.sum(output_delta, axis=0, keepdims=True))
-        self.weights_input_hidden = self.optimizer.update(self.weights_input_hidden, np.dot(X.T, hidden_delta))
-        self.bias_hidden = self.optimizer.update(self.bias_hidden, np.sum(hidden_delta, axis=0, keepdims=True))
+        # Calculate gradients with proper shapes
+        dW2 = np.dot(self.hidden_layer.T, output_delta)  # hidden -> output weights
+        dW1 = np.dot(X.T, hidden_delta)  # input -> hidden weights
+        db2 = np.sum(output_delta, axis=0, keepdims=True)  # output bias
+        db1 = np.sum(hidden_delta, axis=0, keepdims=True)  # hidden bias
 
-    def train(self, X, y, epochs=1000):
-        """Train the neural network."""
+        # Update parameters
+        self.weights_hidden_output = self.optimizer.update(self.weights_hidden_output, dW2)
+        self.weights_input_hidden = self.optimizer.update(self.weights_input_hidden, dW1)
+        self.bias_output = self.optimizer.update(self.bias_output, db2)
+        self.bias_hidden = self.optimizer.update(self.bias_hidden, db1)
+
+    def train(self, X, y, epochs=1000, return_loss=False):
+        """Train the neural network and optionally return loss history."""
+        loss_history = []
         for epoch in range(epochs):
             output = self.forward(X)
             loss = mse_loss(y, output)
             self.backward(X, y)
+            loss_history.append(loss)
             if epoch % 100 == 0:
                 print(f"Epoch {epoch}, Loss: {loss:.4f}")
+        return loss_history if return_loss else None
 
     def predict(self, X):
         """Predict function."""

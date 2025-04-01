@@ -38,16 +38,25 @@ class Adam:
         self.beta1 = beta1
         self.beta2 = beta2
         self.epsilon = epsilon
-        self.m = 0
-        self.v = 0
+        self.m = dict()
+        self.v = dict()
         self.t = 0
 
     def update(self, weights, gradients):
+        param_id = id(weights)
+
+        if param_id not in self.m:
+            self.m[param_id] = np.zeros_like(weights)
+            self.v[param_id] = np.zeros_like(weights)
+
         self.t += 1
-        self.m = self.beta1 * self.m + (1 - self.beta1) * gradients
-        self.v = self.beta2 * self.v + (1 - self.beta2) * (gradients ** 2)
 
-        m_hat = self.m / (1 - self.beta1 ** self.t)
-        v_hat = self.v / (1 - self.beta2 ** self.t)
+        self.m[param_id] = self.beta1 * self.m[param_id] + (1 - self.beta1) * gradients
+        self.v[param_id] = self.beta2 * self.v[param_id] + (1 - self.beta2) * np.square(gradients)
 
-        return weights - (self.learning_rate * m_hat) / (np.sqrt(v_hat) + self.epsilon)
+        m_hat = self.m[param_id] / (1 - self.beta1 ** self.t)
+        v_hat = self.v[param_id] / (1 - self.beta2 ** self.t)
+
+        weights = weights - self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+
+        return weights
