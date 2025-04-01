@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 from nn_core.neural_network import NeuralNetwork
 from plot_utils import plot_loss
 
@@ -10,13 +11,56 @@ class Trainer:
                                 activation=activation, optimizer=optimizer,
                                 learning_rate=learning_rate)
 
-    def train(self, X, y, epochs=1000, save_plot=True):
-        """Trains the neural network and optionally saves a loss plot."""
-        loss_history = self.nn.train(X, y, epochs=epochs, return_loss=True)
+    def train(self, X, y, epochs=1000, batch_size=1, save_plot=True, save_model_path=None):
+        """Trains the neural network with mini-batches and optionally saves a loss plot and model."""
+        #loss_history = self.nn.train(X, y, epochs=epochs, return_loss=True)
+        #if save_plot:
+        #    plot_loss(loss_history, self.nn.optimizer, self.nn.activation)
+        #return loss_history
+        loss_history = []
+
+        for epoch in range(epochs):
+            # shuffle data for each epoch (to avoid bias during training)
+            indices = np.random.permutation(len(X))
+            X, y = X[indices], y[indices]
+
+            # mini-batch training
+            epoch_losses = []
+            for i in range(0, len(X), batch_size):
+                X_batch = X[i:i + batch_size]
+                y_batch = y[i:i + batch_size]
+                loss = self.nn.train(X_batch, y_batch, epochs=1, return_loss=True)
+                current_loss = loss[-1] if isinstance(loss, (list, np.ndarray)) else loss
+                epoch_losses.append(current_loss)
+
+            avg_loss = np.mean(epoch_losses)
+            loss_history.append(avg_loss)
+
+            if epoch % 100 == 0:
+                print(f"Epoch {epoch}/{epochs}, Loss: {avg_loss:.4f}")
+
+        # optionally save the plot of the loss
         if save_plot:
             plot_loss(loss_history, self.nn.optimizer, self.nn.activation)
+
+        # optionally save the model to a file
+        if save_model_path:
+            self.save_model(save_model_path)
+
         return loss_history
 
     def predict(self, X):
         """Predicts using the trained neural network."""
         return self.nn.predict(X)
+
+    def save_model(self, filepath):
+        """Saves the trained model to a file."""
+        with open(filepath, 'wb') as f:
+            pickle.dump(self.nn, f)
+        print(f"Model saved to {filepath}")
+
+    def load_model(self, filepath):
+        """Loads a saved model from a file."""
+        with open(filepath, 'rb') as f:
+            self.nn = pickle.load(f)
+        print(f"Model loaded from {filepath}")

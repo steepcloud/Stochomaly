@@ -75,13 +75,15 @@ class NeuralNetwork:
     def train(self, X, y, epochs=1000, return_loss=False):
         """Train the neural network and optionally return loss history."""
         loss_history = []
-        for epoch in range(epochs):
-            output = self.forward(X)
-            loss = mse_loss(y, output)
-            self.backward(X, y)
-            loss_history.append(loss)
-            if epoch % 100 == 0:
-                print(f"Epoch {epoch}, Loss: {loss:.4f}")
+        output = self.forward(X)
+        loss = mse_loss(y, output)
+        self.backward(X, y)
+        loss_history.append(loss)
+
+        if return_loss:
+            if epochs % 100 == 0:
+                print(f"Batch Loss: {loss:.4f}")
+
         return loss_history if return_loss else None
 
     def predict(self, X):
