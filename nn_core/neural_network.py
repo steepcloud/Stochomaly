@@ -4,6 +4,7 @@ from nn_core.activations import sigmoid_derivative, relu_derivative, leaky_relu_
     swish_derivative, gelu_derivative
 from nn_core.losses import mse_loss
 from nn_core.optimizers import SGD, Momentum, RMSprop, Adam
+from utils.initializers import xavier_initializer, he_initializer, zeros_initializer
 
 class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
@@ -15,10 +16,19 @@ class NeuralNetwork:
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer)
 
-        self.weights_input_hidden = np.random.randn(input_size, hidden_size) * 0.01
-        self.bias_hidden = np.zeros((1, hidden_size))
-        self.weights_hidden_output = np.random.randn(hidden_size, output_size) * 0.01
-        self.bias_output = np.zeros((1, output_size))
+        if activation in ["relu", "leaky_relu", "elu"]:
+            weight_init = he_initializer
+        else:
+            weight_init = xavier_initializer
+
+        self.weights_input_hidden = weight_init((input_size, hidden_size))
+        self.weights_hidden_output = weight_init((hidden_size, output_size))
+        self.bias_hidden = zeros_initializer((1, hidden_size))
+        self.bias_output = zeros_initializer((1, output_size))
+        #self.weights_input_hidden = np.random.randn(input_size, hidden_size) * 0.01
+        #self.bias_hidden = np.zeros((1, hidden_size))
+        #self.weights_hidden_output = np.random.randn(hidden_size, output_size) * 0.01
+        #self.bias_output = np.zeros((1, output_size))
 
     def get_activation_pair(self, name):
         """Returns both activation function and its derivative."""

@@ -51,7 +51,6 @@ class Trainer:
 
     def predict(self, X):
         """Predicts using the trained neural network."""
-        #return self.nn.predict(X)
         X = np.array(X)
         predictions = self.nn.forward(X)
 
