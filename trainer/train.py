@@ -51,7 +51,14 @@ class Trainer:
 
     def predict(self, X):
         """Predicts using the trained neural network."""
-        return self.nn.predict(X)
+        #return self.nn.predict(X)
+        X = np.array(X)
+        predictions = self.nn.forward(X)
+
+        if np.isscalar(predictions):
+            predictions = np.array([predictions])
+
+        return predictions
 
     def save_model(self, filepath):
         """Saves the trained model to a file."""
