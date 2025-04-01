@@ -1,13 +1,13 @@
-# tests/test_nn.py
 import numpy as np
 from trainer.train import Trainer
+from data.preprocess import load_data, preprocess_data
 
 def test_neural_network():
-    # Sample dataset (XOR problem)
-    X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-    y = np.array([[0], [1], [1], [0]])
+    # Load and preprocess data
+    X, y = load_data()
+    X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type='minmax')
 
-    # Initialize the trainer
+    # Initialize trainer
     trainer = Trainer(
         input_size=2,
         hidden_size=4,
@@ -17,16 +17,18 @@ def test_neural_network():
         learning_rate=0.01
     )
 
-    # Train the neural network
-    trainer.train(X, y, epochs=1000, batch_size=1)
+    # Train the model
+    trainer.train(X_train, y_train, epochs=1000, batch_size=1)
 
-    # Predict on the training data
-    predictions = trainer.predict(X)
-    predictions = np.round(predictions)  # Round predictions to 0 or 1
+    # Test predictions
+    train_predictions = trainer.predict(X_train)
+    train_accuracy = np.mean(np.round(train_predictions) == y_train)
 
-    # Calculate accuracy
-    accuracy = np.mean(predictions == y)
-    print(f"Accuracy: {accuracy * 100:.2f}%")
+    test_predictions = trainer.predict(X_test)
+    test_accuracy = np.mean(np.round(test_predictions) == y_test)
+
+    print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
+    print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
 
 if __name__ == "__main__":
     test_neural_network()
