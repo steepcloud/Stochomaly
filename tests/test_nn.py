@@ -60,7 +60,9 @@ def test_neural_network():
             early_stopping_min_improvement=0.001,
             scheduler_type=scheduler_config['name'],
             scheduler_params=scheduler_config['params'],
-            use_batch_norm=False
+            use_batch_norm=False,
+            use_bayesian=True,
+            kl_weight=1.0
         )
 
         # Train model
@@ -68,7 +70,8 @@ def test_neural_network():
             X_train, y_train,
             X_val=X_val, y_val=y_val,
             epochs=1000,
-            batch_size=1
+            batch_size=1,
+            n_samples=10
         )
 
         # Evaluate model

@@ -28,6 +28,9 @@ def main():
     parser.add_argument("--early-stopping-min-improvement", type=float, default=0.001,
                         help="Minimum change to qualify as an improvement for early stopping")
     parser.add_argument("--use-batch-norm", action="store_true", help="Enable batch normalization")
+    parser.add_argument("--use-bayesian", action="store_true", help="Use Bayesian neural network")
+    parser.add_argument("--kl-weight", type=float, default=1.0, help="KL divergence weight for Bayesian NN")
+    parser.add_argument("--n-samples", type=int, default=10, help="Number of samples for Monte Carlo approximation")
 
     # Scheduler-specific parameters
     # StepLR parameters
@@ -109,7 +112,9 @@ def main():
         early_stopping_min_improvement=args.early_stopping_min_improvement,
         scheduler_type=scheduler_type,
         scheduler_params=scheduler_params,
-        use_batch_norm=args.use_batch_norm
+        use_batch_norm=args.use_batch_norm,
+        use_bayesian=args.use_bayesian,
+        kl_weight=args.kl_weight
     )
 
     # Load model if specified
@@ -122,7 +127,7 @@ def main():
     if args.train:
         # Train the model
         loss_history = trainer.train(X_train, y_train, X_val=X_val, y_val=y_val,
-                                     epochs=args.epochs, batch_size=args.batch_size)
+                                     epochs=args.epochs, batch_size=args.batch_size, n_samples=args.n_samples)
 
         # Check if training was stopped early
         if trainer.stopped_early:

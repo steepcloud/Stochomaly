@@ -5,14 +5,15 @@ from nn_core.activations import sigmoid_derivative, relu_derivative, leaky_relu_
 from nn_core.losses import mse_loss
 from nn_core.optimizers import SGD, Momentum, RMSprop, Adam
 from nn_core.layers import BatchNorm
+from nn_core.bayesian_layers import BayesianLinear
 from utils.initializers import xavier_initializer, he_initializer, zeros_initializer
 
 class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
 
     def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01,
-                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False):
-        """Initialize weights, biases, activation functions, optimizers and batch normalization layers."""
+                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False, use_bayesian=False):
+        """Initialize weights, biases, activation functions, optimizers, batch normalization layers and optional Bayesian layers."""
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.use_batch_norm = use_batch_norm
@@ -20,16 +21,21 @@ class NeuralNetwork:
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer, momentum)
         self.dropout_rate = dropout_rate
+        self.use_bayesian = use_bayesian
 
         if activation in ["relu", "leaky_relu", "elu"]:
             weight_init = he_initializer
         else:
             weight_init = xavier_initializer
 
-        self.weights_input_hidden = weight_init((input_size, hidden_size))
-        self.weights_hidden_output = weight_init((hidden_size, output_size))
-        self.bias_hidden = zeros_initializer((1, hidden_size))
-        self.bias_output = zeros_initializer((1, output_size))
+        if self.use_bayesian:
+            self.input_hidden_layer = BayesianLinear(input_size, hidden_size)
+            self.hidden_output_layer = BayesianLinear(hidden_size, output_size)
+        else:
+            self.weights_input_hidden = weight_init((input_size, hidden_size))
+            self.weights_hidden_output = weight_init((hidden_size, output_size))
+            self.bias_hidden = zeros_initializer((1, hidden_size))
+            self.bias_output = zeros_initializer((1, output_size))
 
         if self.use_batch_norm:
             self.bn_hidden = BatchNorm(hidden_size)
@@ -58,49 +64,62 @@ class NeuralNetwork:
 
     def forward(self, X, training=True):
         """Forward pass with dropout support and optional batch normalization."""
-        self.z_hidden = np.dot(X, self.weights_input_hidden) + self.bias_hidden
+        if self.use_bayesian:
+            self.hidden_layer = self.input_hidden_layer.forward(X)
+            self.output_layer = self.hidden_output_layer.forward(self.hidden_layer)
+        else:
+            self.z_hidden = np.dot(X, self.weights_input_hidden) + self.bias_hidden
 
-        if self.use_batch_norm:
-            self.z_hidden, self.bn_cache = self.bn_hidden.forward(self.z_hidden, training)
+            if self.use_batch_norm:
+                self.z_hidden, self.bn_cache = self.bn_hidden.forward(self.z_hidden, training)
 
-        self.hidden_layer = self.activation_func(self.z_hidden)
+            self.hidden_layer = self.activation_func(self.z_hidden)
 
-        if self.dropout_rate > 0 and training:
-            self.dropout_mask = np.random.rand(*self.hidden_layer.shape) < (1 - self.dropout_rate)
-            self.hidden_layer *= self.dropout_mask
+            if self.dropout_rate > 0 and training:
+                self.dropout_mask = np.random.rand(*self.hidden_layer.shape) < (1 - self.dropout_rate)
+                self.hidden_layer *= self.dropout_mask
 
-        self.output_layer = sigmoid(np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output)
+            self.output_layer = sigmoid(np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output)
+
         return self.output_layer
 
     def backward(self, X, y):
         """Backward propagation with weight decay support and optional batch normalization."""
 
-        # Compute gradients
-        output_error = self.output_layer - y
-        output_delta = output_error * (self.output_layer * (1 - self.output_layer))
+        if self.use_bayesian:
+            output_error = self.output_layer - y
+            output_delta = output_error # this can change depending on the model choice
 
-        # Hidden layer gradients
-        hidden_error = np.dot(output_delta, self.weights_hidden_output.T)
-
-        if self.use_batch_norm:
-            hidden_delta, dgamma, dbeta = self.bn_hidden.backward(hidden_error, self.bn_cache, self.z_hidden,
-                                                                  self.z_hidden.var(), self.z_hidden)
-            self.bn_hidden.gamma -= self.learning_rate * dgamma
-            self.bn_hidden.beta -= self.learning_rate * dbeta
+            hidden_delta = self.hidden_output_layer.backward(X=self.hidden_layer, grad_output=output_delta)
+            gradient_to_propagate = hidden_delta[0]
+            self.input_hidden_layer.backward(X, gradient_to_propagate)
         else:
-            hidden_delta = hidden_error * self.activation_derivative(self.hidden_layer)
+            # Compute gradients
+            output_error = self.output_layer - y
+            output_delta = output_error * (self.output_layer * (1 - self.output_layer))
 
-        # Calculate gradients with proper shapes
-        dW2 = np.dot(self.hidden_layer.T, output_delta)  # hidden -> output weights
-        dW1 = np.dot(X.T, hidden_delta)  # input -> hidden weights
-        db2 = np.sum(output_delta, axis=0, keepdims=True)  # output bias
-        db1 = np.sum(hidden_delta, axis=0, keepdims=True)  # hidden bias
+            # Hidden layer gradients
+            hidden_error = np.dot(output_delta, self.weights_hidden_output.T)
 
-        # Update parameters using optimizer
-        self.weights_hidden_output = self.optimizer.update(self.weights_hidden_output, dW2)
-        self.weights_input_hidden = self.optimizer.update(self.weights_input_hidden, dW1)
-        self.bias_output = self.optimizer.update(self.bias_output, db2)
-        self.bias_hidden = self.optimizer.update(self.bias_hidden, db1)
+            if self.use_batch_norm:
+                hidden_delta, dgamma, dbeta = self.bn_hidden.backward(hidden_error, self.bn_cache, self.z_hidden,
+                                                                      self.z_hidden.var(), self.z_hidden)
+                self.bn_hidden.gamma -= self.learning_rate * dgamma
+                self.bn_hidden.beta -= self.learning_rate * dbeta
+            else:
+                hidden_delta = hidden_error * self.activation_derivative(self.hidden_layer)
+
+            # Calculate gradients with proper shapes
+            dW2 = np.dot(self.hidden_layer.T, output_delta)  # hidden -> output weights
+            dW1 = np.dot(X.T, hidden_delta)  # input -> hidden weights
+            db2 = np.sum(output_delta, axis=0, keepdims=True)  # output bias
+            db1 = np.sum(hidden_delta, axis=0, keepdims=True)  # hidden bias
+
+            # Update parameters using optimizer
+            self.weights_hidden_output = self.optimizer.update(self.weights_hidden_output, dW2)
+            self.weights_input_hidden = self.optimizer.update(self.weights_input_hidden, dW1)
+            self.bias_output = self.optimizer.update(self.bias_output, db2)
+            self.bias_hidden = self.optimizer.update(self.bias_hidden, db1)
 
     def train(self, X, y, return_loss=False):
         """Perform one step of forward pass, loss computation, and backpropagation."""
