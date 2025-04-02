@@ -27,6 +27,7 @@ def main():
                         help="Number of epochs with no improvement after which training stops")
     parser.add_argument("--early-stopping-min-improvement", type=float, default=0.001,
                         help="Minimum change to qualify as an improvement for early stopping")
+    parser.add_argument("--use-batch-norm", action="store_true", help="Enable batch normalization")
 
     # Scheduler-specific parameters
     # StepLR parameters
@@ -107,7 +108,8 @@ def main():
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_min_improvement=args.early_stopping_min_improvement,
         scheduler_type=scheduler_type,
-        scheduler_params=scheduler_params
+        scheduler_params=scheduler_params,
+        use_batch_norm=args.use_batch_norm
     )
 
     # Load model if specified

@@ -59,7 +59,8 @@ def test_neural_network():
             early_stopping_patience=20,
             early_stopping_min_improvement=0.001,
             scheduler_type=scheduler_config['name'],
-            scheduler_params=scheduler_config['params']
+            scheduler_params=scheduler_config['params'],
+            use_batch_norm=False
         )
 
         # Train model
@@ -95,7 +96,6 @@ def test_neural_network():
         if trainer.stopped_early:
             print("Training stopped early due to early stopping.")
 
-    # Print summary of all results
     print("\n=== SUMMARY OF RESULTS ===")
     for scheduler, metrics in results.items():
         print(f"\n{scheduler}:")

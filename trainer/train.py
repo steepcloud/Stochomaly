@@ -10,14 +10,15 @@ from nn_core.schedulers import StepLR, ReduceLROnPlateau, ExponentialLR, CosineA
 class Trainer:
     def __init__(self, input_size=2, hidden_size=4, output_size=1,
                  activation="relu", optimizer="adam", learning_rate=0.01,
-                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0,
+                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False,
                  early_stopping_patience=10, early_stopping_min_improvement=0.001,
                  scheduler_type=None, scheduler_params=None):
         """Initialize the trainer with hyperparameters."""
         self.nn = NeuralNetwork(input_size, hidden_size, output_size,
                                 activation=activation, optimizer=optimizer,
                                 learning_rate=learning_rate, weight_decay=weight_decay,
-                                momentum=momentum, dropout_rate=dropout_rate)
+                                momentum=momentum, dropout_rate=dropout_rate,
+                                use_batch_norm=use_batch_norm)
 
         self.scheduler_type = scheduler_type
         self.scheduler_params = scheduler_params if scheduler_params else {}
@@ -103,7 +104,7 @@ class Trainer:
     def predict(self, X):
         """Predicts using the trained neural network."""
         X = np.array(X)
-        predictions = self.nn.forward(X)
+        predictions = self.nn.forward(X, training=False)
 
         if np.isscalar(predictions):
             predictions = np.array([predictions])

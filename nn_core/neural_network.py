@@ -4,16 +4,18 @@ from nn_core.activations import sigmoid_derivative, relu_derivative, leaky_relu_
     swish_derivative, gelu_derivative
 from nn_core.losses import mse_loss
 from nn_core.optimizers import SGD, Momentum, RMSprop, Adam
+from nn_core.layers import BatchNorm
 from utils.initializers import xavier_initializer, he_initializer, zeros_initializer
 
 class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
 
     def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01,
-                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0):
-        """Initialize weights, biases, activation functions, and optimizers."""
+                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False):
+        """Initialize weights, biases, activation functions, optimizers and batch normalization layers."""
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+        self.use_batch_norm = use_batch_norm
         self.activation = activation
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer, momentum)
@@ -28,6 +30,9 @@ class NeuralNetwork:
         self.weights_hidden_output = weight_init((hidden_size, output_size))
         self.bias_hidden = zeros_initializer((1, hidden_size))
         self.bias_output = zeros_initializer((1, output_size))
+
+        if self.use_batch_norm:
+            self.bn_hidden = BatchNorm(hidden_size)
 
     def get_activation_pair(self, name):
         """Returns both activation function and its derivative."""
@@ -52,8 +57,13 @@ class NeuralNetwork:
         return optimizers.get(name, SGD(self.learning_rate))  # Default to SGD
 
     def forward(self, X, training=True):
-        """Forward pass with dropout support."""
-        self.hidden_layer = self.activation_func(np.dot(X, self.weights_input_hidden) + self.bias_hidden)
+        """Forward pass with dropout support and optional batch normalization."""
+        self.z_hidden = np.dot(X, self.weights_input_hidden) + self.bias_hidden
+
+        if self.use_batch_norm:
+            self.z_hidden, self.bn_cache = self.bn_hidden.forward(self.z_hidden, training)
+
+        self.hidden_layer = self.activation_func(self.z_hidden)
 
         if self.dropout_rate > 0 and training:
             self.dropout_mask = np.random.rand(*self.hidden_layer.shape) < (1 - self.dropout_rate)
@@ -63,7 +73,7 @@ class NeuralNetwork:
         return self.output_layer
 
     def backward(self, X, y):
-        """Backward propagation with weight decay support."""
+        """Backward propagation with weight decay support and optional batch normalization."""
 
         # Compute gradients
         output_error = self.output_layer - y
@@ -71,7 +81,14 @@ class NeuralNetwork:
 
         # Hidden layer gradients
         hidden_error = np.dot(output_delta, self.weights_hidden_output.T)
-        hidden_delta = hidden_error * self.activation_derivative(self.hidden_layer)
+
+        if self.use_batch_norm:
+            hidden_delta, dgamma, dbeta = self.bn_hidden.backward(hidden_error, self.bn_cache, self.z_hidden,
+                                                                  self.z_hidden.var(), self.z_hidden)
+            self.bn_hidden.gamma -= self.learning_rate * dgamma
+            self.bn_hidden.beta -= self.learning_rate * dbeta
+        else:
+            hidden_delta = hidden_error * self.activation_derivative(self.hidden_layer)
 
         # Calculate gradients with proper shapes
         dW2 = np.dot(self.hidden_layer.T, output_delta)  # hidden -> output weights

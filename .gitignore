@@ -2,3 +2,6 @@
 __pycache__
 .idea/
 *.pkl
+*.png
+**/*.png
+plots/*.png
