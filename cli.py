@@ -20,6 +20,42 @@ def main():
     parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for the optimizer")
     parser.add_argument("--weight-decay", type=float, default=0.01, help="Weight decay for the optimizer")
     parser.add_argument("--dropout-rate", type=float, default=0.5, help="Dropout rate for the model")
+    parser.add_argument("--scheduler", type=str, default=None,
+                        choices=["StepLR", "ExponentialLR", "ReduceLROnPlateau", "CosineAnnealingLR"],
+                        help="Learning rate scheduler to use")
+    parser.add_argument("--early-stopping-patience", type=int, default=20,
+                        help="Number of epochs with no improvement after which training stops")
+    parser.add_argument("--early-stopping-min-improvement", type=float, default=0.001,
+                        help="Minimum change to qualify as an improvement for early stopping")
+
+    # Scheduler-specific parameters
+    # StepLR parameters
+    parser.add_argument("--step-size", type=int, default=10,
+                        help="Period of learning rate decay (for StepLR)")
+    parser.add_argument("--gamma", type=float, default=0.1,
+                        help="Multiplicative factor of learning rate decay")
+
+    # ReduceLROnPlateau parameters
+    parser.add_argument("--mode", type=str, default="min", choices=["min", "max"],
+                        help="Mode for ReduceLROnPlateau: min - reduce when metric stops decreasing, "
+                             "max - reduce when metric stops increasing")
+    parser.add_argument("--factor", type=float, default=0.1,
+                        help="Factor by which the learning rate will be reduced (for ReduceLROnPlateau)")
+    parser.add_argument("--patience", type=int, default=10,
+                        help="Number of epochs with no improvement after which LR will be reduced"
+                             " (for ReduceLROnPlateau)")
+    parser.add_argument("--threshold", type=float, default=1e-4,
+                        help="Threshold for measuring the new optimum (for ReduceLROnPlateau)")
+    parser.add_argument("--min-lr", type=float, default=0,
+                        help="Minimum learning rate (for ReduceLROnPlateau)")
+
+    # CosineAnnealingLR parameters
+    parser.add_argument("--t-max", type=int, default=50,
+                        help="Maximum number of iterations/epochs (for CosineAnnealingLR)")
+    parser.add_argument("--eta-min", type=float, default=0,
+                        help="Minimum learning rate (for CosineAnnealingLR)")
+
+
     args = parser.parse_args()
 
     # Load and preprocess data
@@ -31,6 +67,32 @@ def main():
     X_val, y_val = X_train[:val_size], y_train[:val_size]
     X_train, y_train = X_train[val_size:], y_train[val_size:]
 
+    scheduler_type = args.scheduler
+    scheduler_params = {}
+
+    if scheduler_type == "StepLR":
+        scheduler_params = {
+            "step_size": args.step_size,
+            "gamma": args.gamma
+        }
+    elif scheduler_type == "ExponentialLR":
+        scheduler_params = {
+            "gamma": args.gamma  # ExponentialLR uses the same gamma parameter
+        }
+    elif scheduler_type == "ReduceLROnPlateau":
+        scheduler_params = {
+            "mode": args.mode,
+            "factor": args.factor,
+            "patience": args.patience,
+            "threshold": args.threshold,
+            "min_lr": args.min_lr
+        }
+    elif scheduler_type == "CosineAnnealingLR":
+        scheduler_params = {
+            "T_max": args.t_max,
+            "eta_min": args.eta_min
+        }
+
     # Initialize trainer with correct input size
     trainer = Trainer(
         input_size=X_train.shape[1],
@@ -41,7 +103,11 @@ def main():
         learning_rate=args.lr,
         momentum=args.momentum,
         weight_decay=args.weight_decay,
-        dropout_rate=args.dropout_rate
+        dropout_rate=args.dropout_rate,
+        early_stopping_patience=args.early_stopping_patience,
+        early_stopping_min_improvement=args.early_stopping_min_improvement,
+        scheduler_type=scheduler_type,
+        scheduler_params=scheduler_params
     )
 
     # Load model if specified

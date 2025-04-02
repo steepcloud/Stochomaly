@@ -3,17 +3,35 @@ import pickle
 from nn_core.neural_network import NeuralNetwork
 from nn_core.losses import mse_loss
 from plot_utils import plot_loss
+from nn_core.schedulers import StepLR, ReduceLROnPlateau, ExponentialLR, CosineAnnealingLR
+
+
 
 class Trainer:
     def __init__(self, input_size=2, hidden_size=4, output_size=1,
                  activation="relu", optimizer="adam", learning_rate=0.01,
                  weight_decay=0.0, momentum=0.9, dropout_rate=0.0,
-                 early_stopping_patience=10, early_stopping_min_improvement=0.001):
+                 early_stopping_patience=10, early_stopping_min_improvement=0.001,
+                 scheduler_type=None, scheduler_params=None):
         """Initialize the trainer with hyperparameters."""
         self.nn = NeuralNetwork(input_size, hidden_size, output_size,
                                 activation=activation, optimizer=optimizer,
                                 learning_rate=learning_rate, weight_decay=weight_decay,
                                 momentum=momentum, dropout_rate=dropout_rate)
+
+        self.scheduler_type = scheduler_type
+        self.scheduler_params = scheduler_params if scheduler_params else {}
+
+        if self.scheduler_type == "StepLR":
+            self.scheduler = StepLR(self.nn.optimizer, **self.scheduler_params)
+        elif self.scheduler_type == "ReduceLROnPlateau":
+            self.scheduler = ReduceLROnPlateau(self.nn.optimizer, **self.scheduler_params)
+        elif self.scheduler_type == "ExponentialLR":
+            self.scheduler = ExponentialLR(self.nn.optimizer, **self.scheduler_params)
+        elif self.scheduler_type == "CosineAnnealingLR":
+            self.scheduler = CosineAnnealingLR(self.nn.optimizer, **self.scheduler_params)
+        else:
+            self.scheduler = None
 
         self.early_stopping_patience = early_stopping_patience
         self.early_stopping_min_improvement = early_stopping_min_improvement
@@ -61,6 +79,15 @@ class Trainer:
                     break  # Stop training if no improvement for 'patience' epochs
             else:
                 print(f"Epoch {epoch}/{epochs}, Loss: {avg_loss:.4f}")
+
+            if self.scheduler:
+                if isinstance(self.scheduler, StepLR) or isinstance(self.scheduler, ExponentialLR) or \
+                        isinstance(self.scheduler, CosineAnnealingLR):
+                    self.scheduler.step()  # Update learning rate on each epoch
+                elif isinstance(self.scheduler, ReduceLROnPlateau):
+                    self.scheduler.step(avg_loss)  # Update learning rate based on validation loss
+
+                print(f"Epoch {epoch}/{epochs}, Learning Rate: {self.nn.optimizer.learning_rate:.6f}")
 
             if epoch % 100 == 0:
                 print(f"Epoch {epoch}/{epochs}, Loss: {avg_loss:.4f}")
