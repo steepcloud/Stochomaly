@@ -5,11 +5,13 @@ from plot_utils import plot_loss
 
 class Trainer:
     def __init__(self, input_size=2, hidden_size=4, output_size=1,
-                 activation="relu", optimizer="adam", learning_rate=0.01):
+                 activation="relu", optimizer="adam", learning_rate=0.01,
+                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0):
         """Initialize the trainer with hyperparameters."""
         self.nn = NeuralNetwork(input_size, hidden_size, output_size,
                                 activation=activation, optimizer=optimizer,
-                                learning_rate=learning_rate)
+                                learning_rate=learning_rate, weight_decay=weight_decay,
+                                momentum=momentum, dropout_rate=dropout_rate)
 
     def train(self, X, y, epochs=1000, batch_size=1, save_plot=True, save_model_path=None):
         """Trains the neural network with mini-batches and optionally saves a loss plot and model."""

@@ -17,6 +17,9 @@ def main():
     parser.add_argument("--save-model", type=str, help="Path to save trained model")
     parser.add_argument("--load-model", type=str, help="Path to load saved model")
     parser.add_argument('--scaler', type=str, default='minmax', help='Data scaling method')
+    parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for the optimizer")
+    parser.add_argument("--weight-decay", type=float, default=0.01, help="Weight decay for the optimizer")
+    parser.add_argument("--dropout-rate", type=float, default=0.5, help="Dropout rate for the model")
     args = parser.parse_args()
 
     # Load and preprocess data
@@ -30,7 +33,10 @@ def main():
         output_size=1,
         activation=args.activation,
         optimizer=args.optimizer,
-        learning_rate=args.lr
+        learning_rate=args.lr,
+        momentum=args.momentum,
+        weight_decay=args.weight_decay,
+        dropout_rate=args.dropout_rate
     )
 
     # Load model if specified

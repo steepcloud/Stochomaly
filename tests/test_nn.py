@@ -1,6 +1,7 @@
 import numpy as np
 from trainer.train import Trainer
 from data.preprocess import load_data, preprocess_data
+import matplotlib.pyplot as plt
 
 def test_neural_network():
     # Load and preprocess data
@@ -14,7 +15,10 @@ def test_neural_network():
         output_size=1,
         activation="relu",
         optimizer="adam",
-        learning_rate=0.01
+        learning_rate=0.01,
+        weight_decay=0.001,
+        momentum=0.9,
+        dropout_rate=0.3
     )
 
     # Train the model

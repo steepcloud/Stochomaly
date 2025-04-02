@@ -10,13 +10,14 @@ class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
 
     def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01,
-                 weight_decay=0.0, momentum=0.9):
+                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0):
         """Initialize weights, biases, activation functions, and optimizers."""
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.activation = activation
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer, momentum)
+        self.dropout_rate = dropout_rate
 
         if activation in ["relu", "leaky_relu", "elu"]:
             weight_init = he_initializer
@@ -50,9 +51,14 @@ class NeuralNetwork:
         }
         return optimizers.get(name, SGD(self.learning_rate))  # Default to SGD
 
-    def forward(self, X):
-        """Forward pass."""
+    def forward(self, X, training=True):
+        """Forward pass with dropout support."""
         self.hidden_layer = self.activation_func(np.dot(X, self.weights_input_hidden) + self.bias_hidden)
+
+        if self.dropout_rate > 0 and training:
+            self.dropout_mask = np.random.rand(*self.hidden_layer.shape) < (1 - self.dropout_rate)
+            self.hidden_layer *= self.dropout_mask
+
         self.output_layer = sigmoid(np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output)
         return self.output_layer
 
@@ -81,7 +87,7 @@ class NeuralNetwork:
 
     def train(self, X, y, return_loss=False):
         """Perform one step of forward pass, loss computation, and backpropagation."""
-        output = self.forward(X)
+        output = self.forward(X, training=True)
         loss = mse_loss(y, output)
         self.backward(X, y)
 
@@ -92,4 +98,4 @@ class NeuralNetwork:
 
     def predict(self, X):
         """Predict function."""
-        return self.forward(X)
+        return self.forward(X, training=False)
