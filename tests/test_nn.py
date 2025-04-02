@@ -8,6 +8,11 @@ def test_neural_network():
     X, y = load_data()
     X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type='minmax')
 
+    # Split training data into training and validation sets for early stopping
+    val_size = int(0.2 * len(X_train))  # 20% for validation
+    X_val, y_val = X_train[:val_size], y_train[:val_size]
+    X_train, y_train = X_train[val_size:], y_train[val_size:]
+
     # Initialize trainer
     trainer = Trainer(
         input_size=X_train.shape[1],  # Ensure correct input size
@@ -18,11 +23,17 @@ def test_neural_network():
         learning_rate=0.01,
         weight_decay=0.001,
         momentum=0.9,
-        dropout_rate=0.3
+        dropout_rate=0.3,
+        early_stopping_patience=20, # if no improvement in 10 epochs
+        early_stopping_min_improvement=0.001  # Minimum improvement for early stopping
     )
 
     # Train the model
-    loss_history = trainer.train(X_train, y_train, epochs=1000, batch_size=1)
+    loss_history = trainer.train(X_train, y_train, X_val=X_val, y_val=y_val, epochs=1000, batch_size=1)
+
+    # Check if training was stopped early
+    if trainer.stopped_early:
+        print("Training stopped early due to early stopping.")
 
     # Test predictions
     train_predictions = trainer.predict(X_train)

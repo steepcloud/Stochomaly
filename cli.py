@@ -26,6 +26,11 @@ def main():
     X, y = load_data()
     X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type=args.scaler)
 
+    # Split training data into training and validation sets
+    val_size = int(0.2 * len(X_train)) # 20% for validation
+    X_val, y_val = X_train[:val_size], y_train[:val_size]
+    X_train, y_train = X_train[val_size:], y_train[val_size:]
+
     # Initialize trainer with correct input size
     trainer = Trainer(
         input_size=X_train.shape[1],
@@ -48,7 +53,12 @@ def main():
 
     if args.train:
         # Train the model
-        loss_history = trainer.train(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size)
+        loss_history = trainer.train(X_train, y_train, X_val=X_val, y_val=y_val,
+                                     epochs=args.epochs, batch_size=args.batch_size)
+
+        # Check if training was stopped early
+        if trainer.stopped_early:
+            print("Training stopped early due to early stopping.")
 
         # Save model if required
         if args.save_model:
