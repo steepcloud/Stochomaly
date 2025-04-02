@@ -9,7 +9,7 @@ def test_neural_network():
 
     # Initialize trainer
     trainer = Trainer(
-        input_size=2,
+        input_size=X_train.shape[1],  # Ensure correct input size
         hidden_size=4,
         output_size=1,
         activation="relu",
@@ -18,14 +18,18 @@ def test_neural_network():
     )
 
     # Train the model
-    trainer.train(X_train, y_train, epochs=1000, batch_size=1)
+    loss_history = trainer.train(X_train, y_train, epochs=1000, batch_size=1)
 
     # Test predictions
     train_predictions = trainer.predict(X_train)
-    train_accuracy = np.mean(np.round(train_predictions) == y_train)
-
     test_predictions = trainer.predict(X_test)
-    test_accuracy = np.mean(np.round(test_predictions) == y_test)
+
+    # Convert predictions to binary (classification case)
+    train_predictions = np.round(train_predictions)
+    test_predictions = np.round(test_predictions)
+
+    train_accuracy = np.mean(train_predictions == y_train)
+    test_accuracy = np.mean(test_predictions == y_test)
 
     print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
     print(f"Test Accuracy: {test_accuracy * 100:.2f}%")

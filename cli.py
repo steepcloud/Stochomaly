@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 from trainer.train import Trainer
 from data.preprocess import load_data, preprocess_data
+import os
 
 
 def main():
@@ -18,20 +19,11 @@ def main():
     parser.add_argument('--scaler', type=str, default='minmax', help='Data scaling method')
     args = parser.parse_args()
 
-    #X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-    #y = np.array([[0], [1], [1], [0]])
+    # Load and preprocess data
     X, y = load_data()
-    X_train, X_test, y_train, y_test = preprocess_data(
-        X, y,
-        scaler_type=args.scaler
-    )
+    X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type=args.scaler)
 
-    #trainer = Trainer(
-    #    activation=args.activation,
-    #    optimizer=args.optimizer,
-    #    hidden_size=args.hidden_size,
-    #    learning_rate=args.lr
-    #)
+    # Initialize trainer with correct input size
     trainer = Trainer(
         input_size=X_train.shape[1],
         hidden_size=args.hidden_size,
@@ -41,31 +33,37 @@ def main():
         learning_rate=args.lr
     )
 
+    # Load model if specified
     if args.load_model:
-        trainer.load_model(args.load_model)
+        if os.path.exists(args.load_model):
+            trainer.load_model(args.load_model)
+        else:
+            print(f"Warning: Model file '{args.load_model}' not found. Proceeding without loading.")
 
     if args.train:
-        #trainer.train(X, y, epochs=args.epochs, batch_size=args.batch_size)
-        trainer.train(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size)
+        # Train the model
+        loss_history = trainer.train(X_train, y_train, epochs=args.epochs, batch_size=args.batch_size)
 
+        # Save model if required
         if args.save_model:
             trainer.save_model(args.save_model)
 
-        # evaluate on both train and test sets
+        # Evaluate on both train and test sets
         train_predictions = trainer.predict(X_train)
-        train_accuracy = np.mean(np.round(train_predictions) == y_train)
-
         test_predictions = trainer.predict(X_test)
-        test_accuracy = np.mean(np.round(test_predictions) == y_test)
+
+        # Convert predictions to binary classification results
+        train_predictions = np.round(train_predictions)
+        test_predictions = np.round(test_predictions)
+
+        train_accuracy = np.mean(train_predictions == y_train)
+        test_accuracy = np.mean(test_predictions == y_test)
 
         print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
         print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
 
-
     else:
-        # make predictions on both sets
-        #predictions = trainer.predict(X)
-        #print("Predictions:\n", predictions)
+        # Make predictions on both sets
         train_predictions = trainer.predict(X_train)
         test_predictions = trainer.predict(X_test)
 
@@ -73,6 +71,7 @@ def main():
         print(np.round(train_predictions))
         print("\nTest Set Predictions:")
         print(np.round(test_predictions))
+
 
 if __name__ == "__main__":
     main()

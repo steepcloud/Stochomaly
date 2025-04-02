@@ -9,12 +9,14 @@ from utils.initializers import xavier_initializer, he_initializer, zeros_initial
 class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
 
-    def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01):
+    def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01,
+                 weight_decay=0.0, momentum=0.9):
         """Initialize weights, biases, activation functions, and optimizers."""
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
         self.activation = activation
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
-        self.optimizer = self.get_optimizer(optimizer)
+        self.optimizer = self.get_optimizer(optimizer, momentum)
 
         if activation in ["relu", "leaky_relu", "elu"]:
             weight_init = he_initializer
@@ -25,10 +27,6 @@ class NeuralNetwork:
         self.weights_hidden_output = weight_init((hidden_size, output_size))
         self.bias_hidden = zeros_initializer((1, hidden_size))
         self.bias_output = zeros_initializer((1, output_size))
-        #self.weights_input_hidden = np.random.randn(input_size, hidden_size) * 0.01
-        #self.bias_hidden = np.zeros((1, hidden_size))
-        #self.weights_hidden_output = np.random.randn(hidden_size, output_size) * 0.01
-        #self.bias_output = np.zeros((1, output_size))
 
     def get_activation_pair(self, name):
         """Returns both activation function and its derivative."""
@@ -42,13 +40,13 @@ class NeuralNetwork:
         }
         return pairs.get(name, (relu, relu_derivative))  # Default to ReLU if invalid
 
-    def get_optimizer(self, name):
-        """Returns the selected optimizer."""
+    def get_optimizer(self, name, momentum):
+        """Returns the selected optimizer with proper hyperparameters."""
         optimizers = {
-            "sgd": SGD(self.learning_rate),
-            "momentum": Momentum(self.learning_rate),
-            "rmsprop": RMSprop(self.learning_rate),
-            "adam": Adam(self.learning_rate)
+            "sgd": SGD(self.learning_rate, weight_decay=self.weight_decay),
+            "momentum": Momentum(self.learning_rate, momentum=momentum, weight_decay=self.weight_decay),
+            "rmsprop": RMSprop(self.learning_rate, weight_decay=self.weight_decay),
+            "adam": Adam(self.learning_rate, weight_decay=self.weight_decay)
         }
         return optimizers.get(name, SGD(self.learning_rate))  # Default to SGD
 
@@ -59,10 +57,9 @@ class NeuralNetwork:
         return self.output_layer
 
     def backward(self, X, y):
-        """Backward propagation with shape-aware bias handling."""
-        # Forward pass results should already be stored in self.hidden_layer and self.output_layer
+        """Backward propagation with weight decay support."""
 
-        # Output layer gradients
+        # Compute gradients
         output_error = self.output_layer - y
         output_delta = output_error * (self.output_layer * (1 - self.output_layer))
 
@@ -76,25 +73,22 @@ class NeuralNetwork:
         db2 = np.sum(output_delta, axis=0, keepdims=True)  # output bias
         db1 = np.sum(hidden_delta, axis=0, keepdims=True)  # hidden bias
 
-        # Update parameters
+        # Update parameters using optimizer
         self.weights_hidden_output = self.optimizer.update(self.weights_hidden_output, dW2)
         self.weights_input_hidden = self.optimizer.update(self.weights_input_hidden, dW1)
         self.bias_output = self.optimizer.update(self.bias_output, db2)
         self.bias_hidden = self.optimizer.update(self.bias_hidden, db1)
 
-    def train(self, X, y, epochs=1000, return_loss=False):
-        """Train the neural network and optionally return loss history."""
-        loss_history = []
+    def train(self, X, y, return_loss=False):
+        """Perform one step of forward pass, loss computation, and backpropagation."""
         output = self.forward(X)
         loss = mse_loss(y, output)
         self.backward(X, y)
-        loss_history.append(loss)
 
         if return_loss:
-            if epochs % 100 == 0:
-                print(f"Batch Loss: {loss:.4f}")
+            return loss  # Return single loss value (not a list)
 
-        return loss_history if return_loss else None
+        return None
 
     def predict(self, X):
         """Predict function."""
