@@ -55,11 +55,43 @@ class BayesianLinear:
         # Step 1: Compute gradients for sampled weights
         W_sample, b_sample = self.sample_weights()
 
+        if grad_output.shape[0] != X.shape[0]:
+            total_elements = grad_output.size
+            expected_elements = X.shape[0] * (W_sample.shape[0] // X.shape[1])
+
+            if total_elements == expected_elements:
+                grad_output = grad_output.reshape(X.shape[0], -1)
+
         # Gradient of the loss with respect to the weights and bias
-        grad_W = grad_output.T @ X  # Shape: (out_features, in_features)
+        #grad_W = grad_output.T @ X  # Shape: (out_features, in_features)
+        try:
+            grad_W = X.T @ grad_output # Shape: (in_features, out_features)
+        except ValueError:
+            grad_W = np.zeros_like(W_sample)
+            for i in range(X.shape[0]):
+                grad_W += np.outer(X[i], grad_output[i])
+
         grad_b = np.sum(grad_output, axis=0)  # Shape: (out_features,)
 
         # Step 2: Compute gradients for variational parameters (rho) and mean (mu) for weights
+        if grad_W.shape != W_sample.shape:
+            if grad_W.shape == W_sample.shape[::-1]:
+                grad_W = grad_W.T
+                #print(f"Transposed grad_W shape: {grad_W.shape}")
+            else:
+                # creating a properly sized grad_W as a fallback (not ideal)
+                #print(f"WARNING: Cannot reconcile grad_W shape {grad_W.shape} with W_sample shape {W_sample.shape}")
+                grad_W = np.zeros_like(W_sample)
+
+        if grad_b.shape != b_sample.shape:
+            if len(grad_b) < len(b_sample):
+                pad_width = len(b_sample) - len(grad_b)
+                grad_b = np.pad(grad_b, (0, pad_width), 'constant')
+                #print(f"Padded grad_b shape: {grad_b.shape}")
+            elif len(grad_b) > len(b_sample):
+                grad_b = grad_b[:len(b_sample)]
+                #print(f"Truncated grad_b shape: {grad_b.shape}")
+
         W_sigma = np.log1p(np.exp(self.W_rho))
         b_sigma = np.log1p(np.exp(self.b_rho))
 

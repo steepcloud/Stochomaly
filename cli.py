@@ -31,6 +31,12 @@ def main():
     parser.add_argument("--use-bayesian", action="store_true", help="Use Bayesian neural network")
     parser.add_argument("--kl-weight", type=float, default=1.0, help="KL divergence weight for Bayesian NN")
     parser.add_argument("--n-samples", type=int, default=10, help="Number of samples for Monte Carlo approximation")
+    parser.add_argument('--data_source', type=str, default='xor',
+                        help='Data source: xor, sklearn, csv')
+    parser.add_argument('--dataset_name', type=str, default='iris',
+                        help='Name of sklearn dataset')
+    parser.add_argument('--csv_filepath', type=str, help='Path to CSV file')
+    parser.add_argument('--target_col', type=str, help='Target column name for CSV data')
 
     # Scheduler-specific parameters
     # StepLR parameters
@@ -62,12 +68,25 @@ def main():
 
     args = parser.parse_args()
 
+    data_params = {}
+    if args.data_source == 'sklearn':
+        data_params['dataset_name'] = args.dataset_name
+    elif args.data_source == 'csv':
+        data_params['filepath'] = args.csv_filepath
+        data_params['target_col'] = args.target_col
+
     # Load and preprocess data
-    X, y = load_data()
+    X, y = load_data(source=args.data_source, **data_params)
+
+    # for sklearn datasets with multiple classes, we need binary targets for this test
+    if args.data_source == "sklearn" and y.max() > 1:
+        # convert to binary problem (0 vs rest)
+        y = (y > 0).astype(int)
+
     X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type=args.scaler)
 
     # Split training data into training and validation sets
-    val_size = int(0.2 * len(X_train)) # 20% for validation
+    val_size = max(1, int(0.2 * len(X_train))) # 20% for validation
     X_val, y_val = X_train[:val_size], y_train[:val_size]
     X_train, y_train = X_train[val_size:], y_train[val_size:]
 
