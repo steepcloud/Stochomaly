@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, roc_curve, auc
+import numpy as np
 import os
 
 def plot_loss(loss_history, optimizer, activation, save_path="plots/training_loss.png"):
@@ -45,5 +46,38 @@ def plot_roc_curve(y_true, y_pred_proba, save_path='plots/roc_curve.png'):
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic')
     plt.legend(loc="lower right")
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_2d_projection(X, y, title='2D Projection', save_path='plots/2d_projection.png'):
+    """Plot 2D projection of features with class coloring."""
+    plt.figure(figsize=(10, 8))
+    scatter = plt.scatter(X[:, 0], X[:, 1], c=y, cmap='viridis', alpha=0.8, edgecolors='w')
+    plt.colorbar(scatter, label='Class')
+    plt.title(title)
+    plt.xlabel('Component 1')
+    plt.ylabel('Component 2')
+    plt.savefig(save_path)
+    plt.close()
+
+
+def plot_feature_comparison(X_original, X_transformed, y, methods, save_path='plots/feature_comparison.png'):
+    """Compare original data with transformed features."""
+    fig, axes = plt.subplots(1, len(methods) + 1, figsize=(5 * (len(methods) + 1), 5))
+
+    dim1, dim2 = 0, 1
+    if X_original.shape[1] > 2:
+        vars = np.var(X_original, axis=0)
+        dim1, dim2 = np.argsort(vars)[-2:]
+
+    axes[0].scatter(X_original[:, dim1], X_original[:, dim2], c=y, cmap='viridis', alpha=0.8)
+    axes[0].set_title('Original Data')
+
+    for i, (method_name, X_method) in enumerate(zip(methods, X_transformed)):
+        axes[i + 1].scatter(X_method[:, 0], X_method[:, 1], c=y, cmap='viridis', alpha=0.8)
+        axes[i + 1].set_title(f'{method_name}')
+
+    plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
