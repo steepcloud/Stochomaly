@@ -40,6 +40,7 @@ class DQNAgent:
             hidden_size=hidden_size,
             output_size=action_size,
             activation='relu',
+            output_activation='linear',
             learning_rate=learning_rate,
             optimizer='adam'
         )
@@ -49,6 +50,7 @@ class DQNAgent:
             hidden_size=hidden_size,
             output_size=action_size,
             activation='relu',
+            output_activation='linear',
             learning_rate=learning_rate,
             optimizer='adam'
         )

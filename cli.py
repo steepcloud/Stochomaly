@@ -13,6 +13,8 @@ def main():
     parser.add_argument("--train", action="store_true", help="Train the neural network")
     parser.add_argument("--epochs", type=int, default=1000, help="Number of training epochs")
     parser.add_argument("--activation", type=str, default="gelu", help="Activation function")
+    parser.add_argument("--output-activation", type=str, default="sigmoid", choices=["sigmoid", "linear"],
+                        help="Activation function for output layer")
     parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer function")
     parser.add_argument("--hidden-size", type=int, default=4, help="Number of hidden neurons")
     parser.add_argument("--lr", type=float, default=0.01, help="Learning rate")
@@ -177,6 +179,7 @@ def main():
         hidden_size=args.hidden_size,
         output_size=1,
         activation=args.activation,
+        output_activation=args.output_activation,
         optimizer=args.optimizer,
         learning_rate=args.lr,
         momentum=args.momentum,

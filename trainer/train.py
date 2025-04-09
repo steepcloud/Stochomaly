@@ -9,13 +9,13 @@ from nn_core.schedulers import StepLR, ReduceLROnPlateau, ExponentialLR, CosineA
 
 class Trainer:
     def __init__(self, input_size=2, hidden_size=4, output_size=1,
-                 activation="relu", optimizer="adam", learning_rate=0.01,
+                 activation="relu", output_activation="sigmoid", optimizer="adam", learning_rate=0.01,
                  weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False,
                  early_stopping_patience=10, early_stopping_min_improvement=0.001,
                  scheduler_type=None, scheduler_params=None, use_bayesian=False, kl_weight=1.0):
         """Initialize the trainer with hyperparameters."""
         self.nn = NeuralNetwork(input_size, hidden_size, output_size,
-                                activation=activation, optimizer=optimizer,
+                                activation=activation, output_activation=output_activation, optimizer=optimizer,
                                 learning_rate=learning_rate, weight_decay=weight_decay,
                                 momentum=momentum, dropout_rate=dropout_rate,
                                 use_batch_norm=use_batch_norm, use_bayesian=use_bayesian)

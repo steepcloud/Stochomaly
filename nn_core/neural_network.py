@@ -11,13 +11,15 @@ from utils.initializers import xavier_initializer, he_initializer, zeros_initial
 class NeuralNetwork:
     """A neural network with customizable activation functions and optimizers."""
 
-    def __init__(self, input_size, hidden_size, output_size, activation="relu", optimizer="sgd", learning_rate=0.01,
-                 weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False, use_bayesian=False):
+    def __init__(self, input_size, hidden_size, output_size, activation="relu", output_activation="sigmoid",
+                 optimizer="sgd", learning_rate=0.01, weight_decay=0.0, momentum=0.9, dropout_rate=0.0,
+                 use_batch_norm=False, use_bayesian=False):
         """Initialize weights, biases, activation functions, optimizers, batch normalization layers and optional Bayesian layers."""
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.use_batch_norm = use_batch_norm
         self.activation = activation
+        self.output_activation = output_activation
         self.activation_func, self.activation_derivative = self.get_activation_pair(activation)
         self.optimizer = self.get_optimizer(optimizer, momentum)
         self.dropout_rate = dropout_rate
@@ -39,6 +41,68 @@ class NeuralNetwork:
 
         if self.use_batch_norm:
             self.bn_hidden = BatchNorm(hidden_size)
+
+    def get_params(self):
+        """Return all parameters of the network as a dictionary."""
+        params = {}
+
+        if self.use_bayesian:
+            # Bayesian parameters
+            params['input_hidden'] = {
+                'W_mu': self.input_hidden_layer.W_mu.copy(),
+                'W_rho': self.input_hidden_layer.W_rho.copy(),
+                'b_mu': self.input_hidden_layer.b_mu.copy(),
+                'b_rho': self.input_hidden_layer.b_rho.copy()
+            }
+
+            params['hidden_output'] = {
+                'W_mu': self.hidden_output_layer.W_mu.copy(),
+                'W_rho': self.hidden_output_layer.W_rho.copy(),
+                'b_mu': self.hidden_output_layer.b_mu.copy(),
+                'b_rho': self.hidden_output_layer.b_rho.copy()
+            }
+        else:
+            # standard network parameters
+            params['weights_input_hidden'] = self.weights_input_hidden.copy()
+            params['weights_hidden_output'] = self.weights_hidden_output.copy()
+            params['bias_hidden'] = self.bias_hidden.copy()
+            params['bias_output'] = self.bias_output.copy()
+
+        # batch normalization parameters if used
+        if self.use_batch_norm:
+            params['bn_gamma'] = self.bn_hidden.gamma.copy()
+            params['bn_beta'] = self.bn_hidden.beta.copy()
+            params['bn_running_mean'] = self.bn_hidden.running_mean.copy()
+            params['bn_running_var'] = self.bn_hidden.running_var.copy()
+
+        return params
+
+    def set_params(self, params):
+        """Set all parameters from a dictionary."""
+        if self.use_bayesian:
+            # Bayesian parameters
+            self.input_hidden_layer.W_mu = params['input_hidden']['W_mu'].copy()
+            self.input_hidden_layer.W_rho = params['input_hidden']['W_rho'].copy()
+            self.input_hidden_layer.b_mu = params['input_hidden']['b_mu'].copy()
+            self.input_hidden_layer.b_rho = params['input_hidden']['b_rho'].copy()
+
+            self.hidden_output_layer.W_mu = params['hidden_output']['W_mu'].copy()
+            self.hidden_output_layer.W_rho = params['hidden_output']['W_rho'].copy()
+            self.hidden_output_layer.b_mu = params['hidden_output']['b_mu'].copy()
+            self.hidden_output_layer.b_rho = params['hidden_output']['b_rho'].copy()
+        else:
+            # standard network parameters
+            self.weights_input_hidden = params['weights_input_hidden'].copy()
+            self.weights_hidden_output = params['weights_hidden_output'].copy()
+            self.bias_hidden = params['bias_hidden'].copy()
+            self.bias_output = params['bias_output'].copy()
+
+        # batch normalization parameters if used
+        if self.use_batch_norm and 'bn_gamma' in params:
+            self.bn_hidden.gamma = params['bn_gamma'].copy()
+            self.bn_hidden.beta = params['bn_beta'].copy()
+            self.bn_hidden.running_mean = params['bn_running_mean'].copy()
+            self.bn_hidden.running_var = params['bn_running_var'].copy()
 
     def get_activation_pair(self, name):
         """Returns both activation function and its derivative."""
@@ -79,7 +143,12 @@ class NeuralNetwork:
                 self.dropout_mask = np.random.rand(*self.hidden_layer.shape) < (1 - self.dropout_rate)
                 self.hidden_layer *= self.dropout_mask
 
-            self.output_layer = sigmoid(np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output)
+            self.z_output = np.dot(self.hidden_layer, self.weights_hidden_output) + self.bias_output
+
+            if self.output_activation == "sigmoid":
+                self.output_layer = sigmoid(self.z_output)
+            else:
+                self.output_layer = self.z_output
 
         return self.output_layer
 
@@ -96,7 +165,12 @@ class NeuralNetwork:
         else:
             # Compute gradients
             output_error = self.output_layer - y
-            output_delta = output_error * (self.output_layer * (1 - self.output_layer))
+
+            if self.output_activation == "sigmoid":
+                output_delta = output_error * (self.output_layer * (1 - self.output_layer))
+            else:
+                # linear output derivative is just 1
+                output_delta = output_error
 
             # Hidden layer gradients
             hidden_error = np.dot(output_delta, self.weights_hidden_output.T)

@@ -65,6 +65,7 @@ def test_neural_network(data_source="xor", **data_params):
             hidden_size=max(4, X_train.shape[1]), # scale hidden size with input features
             output_size=1,
             activation="relu",
+            output_activation="sigmoid",
             optimizer="adam",
             learning_rate=0.01,
             weight_decay=0.001,
