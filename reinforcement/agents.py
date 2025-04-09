@@ -74,7 +74,7 @@ class DQNAgent:
     def get_action(self, state, training=True):
         """Select action using policy"""
         state_array = np.array(state).reshape(1, -1)
-        q_values = self.q_network.predirect(state_array)
+        q_values = self.q_network.predict(state_array)
 
         return self.policy.select_action(state, q_values[0], training)
 
