@@ -81,3 +81,29 @@ def plot_feature_comparison(X_original, X_transformed, y, methods, save_path='pl
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
+def plot_learning_curve(rewards_history, avg_rewards_history, save_path='plots/learning_curve.png', show=True):
+    """Plot and save reinforcement learning training curve.
+
+    Args:
+        rewards_history: List of rewards for each episode
+        avg_rewards_history: List of average rewards (e.g., over last 100 episodes)
+        save_path: Path to save the plot
+        show: Whether to display the plot
+    """
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(rewards_history, label='Episode Reward')
+    plt.plot(avg_rewards_history, label='Avg Reward (100 ep)')
+    plt.xlabel('Episode')
+    plt.ylabel('Reward')
+    plt.title('RL Agent Learning Curve')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path)
+
+    if show:
+        plt.show()
+    else:
+        plt.close()

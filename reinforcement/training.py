@@ -54,17 +54,9 @@ def train_rl_agent(agent, environment, episodes=100, max_steps=100,
             print(f"Episode {episode + 1}/{episodes} | Reward: {episode_reward:.4f} | "
                   f"Avg Reward: {avg_reward:.4f} | Epsilon: {agent.epsilon:.4f}")
 
-    # TODO(add plot function to plot_utils): plot learning curve
     if verbose > 0:
-        plt.figure(figsize=(10, 6))
-        plt.plot(rewards_history, label='Episode Reward')
-        plt.plot(avg_rewards_history, label='Avg Reward (100 ep)')
-        plt.xlabel('Episode')
-        plt.ylabel('Reward')
-        plt.title('RL Agent Learning Curve')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+        from plot_utils import plot_learning_curve
+        plot_learning_curve(rewards_history, avg_rewards_history)
 
     return {
         'rewards': rewards_history,
