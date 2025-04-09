@@ -5,11 +5,17 @@ from data.preprocess import load_data, preprocess_data
 from feature_engineering.pca import PCA
 from feature_engineering.autoencoder import Autoencoder
 from feature_engineering.manifold import UMAP
+from reinforcement.agents import DQNAgent
+from reinforcement.policies import EpsilonGreedyPolicy, SoftmaxPolicy
+from reinforcement.training import train_rl_agent, evaluate_rl_agent
+from reinforcement.environment import AnomalyDetectionEnv
 import os
 
 
 def main():
     parser = argparse.ArgumentParser(description="Train and test a neural network.")
+    parser.add_argument("--mode", type=str, default="nn", choices=["nn", "rl"],
+                        help="Mode: neural network (nn) or reinforcement learning (rl)")
     parser.add_argument("--train", action="store_true", help="Train the neural network")
     parser.add_argument("--epochs", type=int, default=1000, help="Number of training epochs")
     parser.add_argument("--activation", type=str, default="gelu", help="Activation function")
@@ -55,7 +61,7 @@ def main():
                         help="Multiplicative factor of learning rate decay")
 
     # ReduceLROnPlateau parameters
-    parser.add_argument("--mode", type=str, default="min", choices=["min", "max"],
+    parser.add_argument("--scheduler-mode", type=str, default="min", choices=["min", "max"],
                         help="Mode for ReduceLROnPlateau: min - reduce when metric stops decreasing, "
                              "max - reduce when metric stops increasing")
     parser.add_argument("--factor", type=float, default=0.1,
@@ -89,6 +95,31 @@ def main():
                         help='Number of epochs for autoencoder training')
     parser.add_argument('--ae-batch-size', type=int, default=32,
                         help='Batch size for autoencoder training')
+
+    # Reinforcement Learning arguments
+    parser.add_argument("--rl-episodes", type=int, default=100, help="Number of episodes for RL training")
+    parser.add_argument("--rl-max-steps", type=int, default=100, help="Maximum steps per episode for RL")
+    parser.add_argument("--rl-policy", type=str, default="epsilon-greedy", choices=["epsilon-greedy", "softmax"],
+                        help="Policy for action selection")
+    parser.add_argument("--rl-epsilon", type=float, default=1.0, help="Initial epsilon for epsilon-greedy policy")
+    parser.add_argument("--rl-epsilon-decay", type=float, default=0.99, help="Decay rate for epsilon")
+    parser.add_argument("--rl-epsilon-min", type=float, default=0.01, help="Minimum epsilon value")
+    parser.add_argument("--rl-temperature", type=float, default=1.0, help="Temperature for softmax policy")
+    parser.add_argument("--rl-temperature-decay", type=float, default=0.995,
+                        help="Decay rate for temperature in softmax policy")
+    parser.add_argument("--rl-temperature-min", type=float, default=0.1,
+                        help="Minimum temperature value for softmax policy")
+    parser.add_argument("--rl-gamma", type=float, default=0.99, help="Discount factor for future rewards")
+    parser.add_argument("--rl-batch-size", type=int, default=32, help="Batch size for RL training")
+    parser.add_argument("--rl-learning-rate", type=float, default=0.001, help="Learning rate for RL agent")
+    parser.add_argument("--rl-target-update", type=int, default=10, help="Update frequency for target network")
+    parser.add_argument("--rl-memory-size", type=int, default=10000, help="Size of replay buffer")
+    parser.add_argument("--rl-reward-metric", type=str, default="f1", choices=["f1", "accuracy"],
+                        help="Metric to use for rewards in anomaly detection")
+    parser.add_argument("--rl-n-thresholds", type=int, default=10,
+                        help="Number of thresholds for anomaly detection environment")
+    parser.add_argument("--rl-threshold-range", type=str, default="0.0,1.0",
+                        help="Range of thresholds (min,max) for anomaly detection")
 
     args = parser.parse_args()
 
@@ -142,101 +173,189 @@ def main():
         X_test = transformer.transform(X_test)
         print(f"Reduced dimension to {X_train.shape[1]} features")
 
-    # Split training data into training and validation sets
-    val_size = max(1, int(0.2 * len(X_train))) # 20% for validation
-    X_val, y_val = X_train[:val_size], y_train[:val_size]
-    X_train, y_train = X_train[val_size:], y_train[val_size:]
+    if args.mode == "nn":
+        # Neural network training/prediction mode
 
-    scheduler_type = args.scheduler
-    scheduler_params = {}
+        # Split training data into training and validation sets
+        val_size = max(1, int(0.2 * len(X_train))) # 20% for validation
+        X_val, y_val = X_train[:val_size], y_train[:val_size]
+        X_train, y_train = X_train[val_size:], y_train[val_size:]
 
-    if scheduler_type == "StepLR":
-        scheduler_params = {
-            "step_size": args.step_size,
-            "gamma": args.gamma
-        }
-    elif scheduler_type == "ExponentialLR":
-        scheduler_params = {
-            "gamma": args.gamma  # ExponentialLR uses the same gamma parameter
-        }
-    elif scheduler_type == "ReduceLROnPlateau":
-        scheduler_params = {
-            "mode": args.mode,
-            "factor": args.factor,
-            "patience": args.patience,
-            "threshold": args.threshold,
-            "min_lr": args.min_lr
-        }
-    elif scheduler_type == "CosineAnnealingLR":
-        scheduler_params = {
-            "T_max": args.t_max,
-            "eta_min": args.eta_min
-        }
+        scheduler_type = args.scheduler
+        scheduler_params = {}
 
-    # Initialize trainer with correct input size
-    trainer = Trainer(
-        input_size=X_train.shape[1],
-        hidden_size=args.hidden_size,
-        output_size=1,
-        activation=args.activation,
-        output_activation=args.output_activation,
-        optimizer=args.optimizer,
-        learning_rate=args.lr,
-        momentum=args.momentum,
-        weight_decay=args.weight_decay,
-        dropout_rate=args.dropout_rate,
-        early_stopping_patience=args.early_stopping_patience,
-        early_stopping_min_improvement=args.early_stopping_min_improvement,
-        scheduler_type=scheduler_type,
-        scheduler_params=scheduler_params,
-        use_batch_norm=args.use_batch_norm,
-        use_bayesian=args.use_bayesian,
-        kl_weight=args.kl_weight
-    )
+        if scheduler_type == "StepLR":
+            scheduler_params = {
+                "step_size": args.step_size,
+                "gamma": args.gamma
+            }
+        elif scheduler_type == "ExponentialLR":
+            scheduler_params = {
+                "gamma": args.gamma  # ExponentialLR uses the same gamma parameter
+            }
+        elif scheduler_type == "ReduceLROnPlateau":
+            scheduler_params = {
+                "mode": args.scheduler_mode,
+                "factor": args.factor,
+                "patience": args.patience,
+                "threshold": args.threshold,
+                "min_lr": args.min_lr
+            }
+        elif scheduler_type == "CosineAnnealingLR":
+            scheduler_params = {
+                "T_max": args.t_max,
+                "eta_min": args.eta_min
+            }
 
-    # Load model if specified
-    if args.load_model:
-        if os.path.exists(args.load_model):
-            trainer.load_model(args.load_model)
+        # Initialize trainer with correct input size
+        trainer = Trainer(
+            input_size=X_train.shape[1],
+            hidden_size=args.hidden_size,
+            output_size=1,
+            activation=args.activation,
+            output_activation=args.output_activation,
+            optimizer=args.optimizer,
+            learning_rate=args.lr,
+            momentum=args.momentum,
+            weight_decay=args.weight_decay,
+            dropout_rate=args.dropout_rate,
+            early_stopping_patience=args.early_stopping_patience,
+            early_stopping_min_improvement=args.early_stopping_min_improvement,
+            scheduler_type=scheduler_type,
+            scheduler_params=scheduler_params,
+            use_batch_norm=args.use_batch_norm,
+            use_bayesian=args.use_bayesian,
+            kl_weight=args.kl_weight
+        )
+
+        # Load model if specified
+        if args.load_model:
+            if os.path.exists(args.load_model):
+                trainer.load_model(args.load_model)
+            else:
+                print(f"Warning: Model file '{args.load_model}' not found. Proceeding without loading.")
+
+        if args.train:
+            # Train the model
+            loss_history = trainer.train(X_train, y_train, X_val=X_val, y_val=y_val,
+                                         epochs=args.epochs, batch_size=args.batch_size, n_samples=args.n_samples)
+
+            # Check if training was stopped early
+            if trainer.stopped_early:
+                print("Training stopped early due to early stopping.")
+
+            # Save model if required
+            if args.save_model:
+                trainer.save_model(args.save_model)
+
+            # Evaluate on both train and test sets
+            train_predictions = trainer.predict(X_train)
+            test_predictions = trainer.predict(X_test)
+
+            # Convert predictions to binary classification results
+            train_predictions = np.round(train_predictions)
+            test_predictions = np.round(test_predictions)
+
+            train_accuracy = np.mean(train_predictions == y_train)
+            test_accuracy = np.mean(test_predictions == y_test)
+
+            print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
+            print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+
         else:
-            print(f"Warning: Model file '{args.load_model}' not found. Proceeding without loading.")
+            # Make predictions on both sets
+            train_predictions = trainer.predict(X_train)
+            test_predictions = trainer.predict(X_test)
 
-    if args.train:
-        # Train the model
-        loss_history = trainer.train(X_train, y_train, X_val=X_val, y_val=y_val,
-                                     epochs=args.epochs, batch_size=args.batch_size, n_samples=args.n_samples)
+            print("Training Set Predictions:")
+            print(np.round(train_predictions))
+            print("\nTest Set Predictions:")
+            print(np.round(test_predictions))
 
-        # Check if training was stopped early
-        if trainer.stopped_early:
-            print("Training stopped early due to early stopping.")
+    elif args.mode == "rl":
+        # Reinforcement Learning for anomaly detection
+        print("Running reinforcement learning for anomaly detection")
 
-        # Save model if required
-        if args.save_model:
-            trainer.save_model(args.save_model)
+        # parse threshold range
+        threshold_min, threshold_max = map(float, args.rl_threshold_range.split(','))
 
-        # Evaluate on both train and test sets
-        train_predictions = trainer.predict(X_train)
-        test_predictions = trainer.predict(X_test)
+        # create environment
+        env = AnomalyDetectionEnv(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+            reward_metric=args.rl_reward_metric,
+            threshold_range=(threshold_min, threshold_max),
+            n_thresholds=args.rl_n_thresholds
+        )
 
-        # Convert predictions to binary classification results
-        train_predictions = np.round(train_predictions)
-        test_predictions = np.round(test_predictions)
+        # create policy
+        if args.rl_policy == "epsilon-greedy":
+            policy = EpsilonGreedyPolicy(
+                epsilon_start=args.rl_epsilon,
+                epsilon_end=args.rl_epsilon_min,
+                epsilon_decay=args.rl_epsilon_decay
+            )
+        else:  # softmax
+            policy = SoftmaxPolicy(
+                temperature=args.rl_temperature,
+                temperature_decay=args.rl_temperature_decay,
+                temperature_min=args.rl_temperature_min
+            )
 
-        train_accuracy = np.mean(train_predictions == y_train)
-        test_accuracy = np.mean(test_predictions == y_test)
+        # create agent
+        state_size = 4  # based on AnomalyDetectionEnv's state representation
+        action_size = 3  # decrease, keep, increase threshold
 
-        print(f"Train Accuracy: {train_accuracy * 100:.2f}%")
-        print(f"Test Accuracy: {test_accuracy * 100:.2f}%")
+        agent = DQNAgent(
+            state_size=state_size,
+            action_size=action_size,
+            learning_rate=args.rl_learning_rate,
+            discount_factor=args.rl_gamma,
+            epsilon_start=args.rl_epsilon,
+            epsilon_end=args.rl_epsilon_min,
+            epsilon_decay=args.rl_epsilon_decay,
+            batch_size=args.rl_batch_size,
+            update_target_every=args.rl_target_update,
+            policy=policy,
+            memory_size=args.rl_memory_size
+        )
 
-    else:
-        # Make predictions on both sets
-        train_predictions = trainer.predict(X_train)
-        test_predictions = trainer.predict(X_test)
+        # run training
+        print(f"Training RL agent for {args.rl_episodes} episodes...")
+        results = train_rl_agent(
+            agent=agent,
+            environment=env,
+            episodes=args.rl_episodes,
+            max_steps=args.rl_max_steps,
+            verbose=1
+        )
 
-        print("Training Set Predictions:")
-        print(np.round(train_predictions))
-        print("\nTest Set Predictions:")
-        print(np.round(test_predictions))
+        # evaluate
+        print("Evaluating RL agent...")
+        eval_reward = evaluate_rl_agent(
+            agent=agent,
+            environment=env,
+            episodes=10
+        )
+        print(f"Evaluation average reward: {eval_reward:.4f}")
+
+        # get the final threshold selected by the agent
+        env.reset()
+        done = False
+        while not done:
+            action = agent.get_action(env._get_state())
+            _, _, done, _ = env.step(action)
+
+        final_threshold = env.thresholds[env.current_threshold_idx]
+        print(f"Final selected threshold: {final_threshold:.4f}")
+
+        # calculate anomaly predictions using the final threshold
+        y_pred = (env.anomaly_scores > final_threshold).astype(int)
+        accuracy = np.mean(y_pred == y_test)
+
+        print(f"Anomaly detection accuracy: {accuracy * 100:.2f}%")
 
 
 if __name__ == "__main__":

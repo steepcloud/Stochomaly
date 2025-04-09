@@ -9,7 +9,8 @@ class DQNAgent:
     def __init__(self, state_size, action_size, hidden_size=64,
                  learning_rate=0.001, discount_factor=0.99,
                  epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995,
-                 batch_size=64, update_target_every=10):
+                 batch_size=64, update_target_every=10,
+                 policy=None, memory_size=10000):
         """
         Args:
             state_size: Dimension of state
@@ -22,6 +23,8 @@ class DQNAgent:
             epsilon_decay: Rate of epsilon decay
             batch_size: Batch size for training
             update_target_every: Steps between target network updates
+            policy: Optional external policy object (if None, creates EpsilonGreedyPolicy)
+            memory_size: Size of replay buffer
         """
         self.state_size = state_size
         self.action_size = action_size
@@ -30,11 +33,14 @@ class DQNAgent:
         self.update_target_every = update_target_every
         self.step_count = 0
 
-        self.policy = EpsilonGreedyPolicy(
-            epsilon_start=epsilon_start,
-            epsilon_end=epsilon_end,
-            epsilon_decay=epsilon_decay
-        )
+        if policy is not None:
+            self.policy = policy
+        else:
+            self.policy = EpsilonGreedyPolicy(
+                epsilon_start=epsilon_start,
+                epsilon_end=epsilon_end,
+                epsilon_decay=epsilon_decay
+            )
 
         # create Q-networks (main and target)
         from nn_core.neural_network import NeuralNetwork
@@ -63,7 +69,20 @@ class DQNAgent:
         self._update_target_network()
 
         # create replay buffer
-        self.replay_buffer = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer(capacity=memory_size)
+
+    @property
+    def epsilon(self):
+        """Expose epsilon value from policy for backward compatibility"""
+        if hasattr(self.policy, 'epsilon'):
+            return self.policy.epsilon
+        return None
+
+    @epsilon.setter
+    def epsilon(self, value):
+        """Set epsilon value in policy for backward compatibility"""
+        if hasattr(self.policy, 'epsilon'):
+            self.policy.epsilon = value
 
     def _update_target_network(self):
         """Update target network with weights from main network"""
