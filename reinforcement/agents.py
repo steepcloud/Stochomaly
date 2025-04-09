@@ -1,5 +1,6 @@
 import numpy as np
 from reinforcement.replay import ReplayBuffer
+from reinforcement.policies import EpsilonGreedyPolicy
 
 
 class DQNAgent:
@@ -25,12 +26,15 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.discount_factor = discount_factor
-        self.epsilon = epsilon_start
-        self.epsilon_end = epsilon_end
-        self.epsilon_decay = epsilon_decay
         self.batch_size = batch_size
         self.update_target_every = update_target_every
         self.step_count = 0
+
+        self.policy = EpsilonGreedyPolicy(
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay
+        )
 
         # create Q-networks (main and target)
         from nn_core.neural_network import NeuralNetwork
@@ -68,14 +72,11 @@ class DQNAgent:
         self.target_network.set_params(params)
 
     def get_action(self, state, training=True):
-        """Select action using epsilon-greedy policy"""
-        if training and np.random.rand() < self.epsilon:
-            # exploration: random action
-            return np.random.randint(self.action_size)
-        else:
-            # exploitation: best action from Q-network
-            q_values = self.q_network.predict(state.reshape(1, -1))
-            return np.argmax(q_values)
+        """Select action using policy"""
+        state_array = np.array(state).reshape(1, -1)
+        q_values = self.q_network.predirect(state_array)
+
+        return self.policy.select_action(state, q_values[0], training)
 
     def train(self, state, action, reward, next_state, done):
         """Train agent with a single experience"""
@@ -108,7 +109,7 @@ class DQNAgent:
             self.q_network.train(states[i].reshape(1, -1), current_q[i].reshape(1, -1))
 
         # update epsilon for exploration
-        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+        self.policy.decay_epsilon()
 
         # periodically update target network
         self.step_count += 1
