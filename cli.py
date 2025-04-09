@@ -2,6 +2,9 @@ import argparse
 import numpy as np
 from trainer.train import Trainer
 from data.preprocess import load_data, preprocess_data
+from feature_engineering.pca import PCA
+from feature_engineering.autoencoder import Autoencoder
+from feature_engineering.manifold import UMAP
 import os
 
 
@@ -37,6 +40,10 @@ def main():
                         help='Name of sklearn dataset')
     parser.add_argument('--csv_filepath', type=str, help='Path to CSV file')
     parser.add_argument('--target_col', type=str, help='Target column name for CSV data')
+    parser.add_argument('--feature-engineering', type=str, choices=['none', 'pca', 'autoencoder', 'umap'],
+                        default='none', help='Feature engineering method to use')
+    parser.add_argument('--output-dim', type=int, default=2,
+                        help='Output dimension for feature engineering')
 
     # Scheduler-specific parameters
     # StepLR parameters
@@ -65,6 +72,21 @@ def main():
     parser.add_argument("--eta-min", type=float, default=0,
                         help="Minimum learning rate (for CosineAnnealingLR)")
 
+    # UMAP specific parameters
+    parser.add_argument('--n-neighbors', type=int, default=15,
+                        help='Number of neighbors for UMAP')
+    parser.add_argument('--min-dist', type=float, default=0.1,
+                        help='Minimum distance parameter for UMAP')
+    parser.add_argument('--n-iter', type=int, default=200,
+                        help='Number of iterations for UMAP optimization')
+
+    # Autoencoder specific parameters
+    parser.add_argument('--ae-hidden-dim', type=int, default=8,
+                        help='Hidden layer dimension for autoencoder')
+    parser.add_argument('--ae-epochs', type=int, default=50,
+                        help='Number of epochs for autoencoder training')
+    parser.add_argument('--ae-batch-size', type=int, default=32,
+                        help='Batch size for autoencoder training')
 
     args = parser.parse_args()
 
@@ -84,6 +106,39 @@ def main():
         y = (y > 0).astype(int)
 
     X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type=args.scaler)
+
+    if args.feature_engineering != 'none':
+        print(f"Applying {args.feature_engineering} feature engineering...")
+
+        if args.feature_engineering == 'pca':
+            transformer = PCA(n_components=args.output_dim)
+
+        elif args.feature_engineering == 'autoencoder':
+            transformer = Autoencoder(
+                input_dim=X_train.shape[1],
+                hidden_dim=args.ae_hidden_dim,
+                latent_dim=args.output_dim,
+                epochs=args.ae_epochs,
+                batch_size=args.ae_batch_size
+            )
+
+        elif args.feature_engineering == 'umap':
+            n_neighbors = args.n_neighbors
+            if len(X_train) <= n_neighbors:
+                n_neighbors = max(2, len(X_train) - 1)
+                print(f"WARNING: Dataset too small for requested n_neighbors={args.n_neighbors}.")
+                print(f"Automatically adjusting to n_neighbors={n_neighbors}")
+
+            transformer = UMAP(
+                n_components=args.output_dim,
+                n_neighbors=n_neighbors,
+                min_dist=args.min_dist,
+                n_iter=args.n_iter
+            )
+
+        X_train = transformer.fit_transform(X_train)
+        X_test = transformer.transform(X_test)
+        print(f"Reduced dimension to {X_train.shape[1]} features")
 
     # Split training data into training and validation sets
     val_size = max(1, int(0.2 * len(X_train))) # 20% for validation
