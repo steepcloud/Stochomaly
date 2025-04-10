@@ -356,3 +356,159 @@ class DuelingDQNAgent(DQNAgent):
         self.step_count += 1
         if self.step_count % self.update_target_every == 0:
             self._update_target_network()
+
+
+class A2CAgent:
+    """Advantage Actor-Critic agent for policy gradient reinforcement learning"""
+
+    def __init__(self, state_size, action_size, hidden_size=64,
+                 actor_lr=0.001, critic_lr=0.001, discount_factor=0.99,
+                 entropy_coefficient=0.01, max_grad_norm=0.5):
+        """
+        Args:
+            state_size: Dimension of state
+            action_size: Number of possible actions
+            hidden_size: Size of hidden layer
+            actor_lr: Learning rate for actor network
+            critic_lr: Learning rate for critic network
+            discount_factor: Discount factor for future rewards
+            entropy_coefficient: Weight for entropy bonus (encourages exploration)
+            max_grad_norm: Maximum norm for gradient clipping
+        """
+        self.state_size = state_size
+        self.action_size = action_size
+        self.discount_factor = discount_factor
+        self.entropy_coefficient = entropy_coefficient
+        self.max_grad_norm = max_grad_norm
+
+        # actor (policy) network with softmax output
+        from nn_core.neural_network import NeuralNetwork
+        self.actor = NeuralNetwork(
+            input_size=state_size,
+            hidden_size=hidden_size,
+            output_size=action_size,
+            activation='relu',
+            output_activation='softmax',  # outputs action probabilities
+            learning_rate=actor_lr,
+            optimizer='adam'
+        )
+
+        # critic (value) network
+        self.critic = NeuralNetwork(
+            input_size=state_size,
+            hidden_size=hidden_size,
+            output_size=1,  # value function is scalar
+            activation='relu',
+            output_activation='linear',
+            learning_rate=critic_lr,
+            optimizer='adam'
+        )
+
+        # episode memory (A2C is on-policy, so we don't use replay buffer)
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.next_states = []
+        self.dones = []
+
+    def get_action(self, state, training=True):
+        """Select action based on policy network probabilities"""
+        state_array = np.array(state).reshape(1, -1)
+        action_probs = self.actor.predict(state_array)[0]
+
+        if training:
+            # sample from action probability distribution for exploration
+            action = np.random.choice(self.action_size, p=action_probs)
+        else:
+            # during evaluation, pick the most probable action
+            action = np.argmax(action_probs)
+
+        return action
+
+    def train(self, state, action, reward, next_state, done):
+        """Store experience for batch training"""
+        # store the experience
+        self.states.append(state)
+        self.actions.append(action)
+        self.rewards.append(reward)
+        self.next_states.append(next_state)
+        self.dones.append(done)
+
+        # train at the end of episode
+        if done:
+            self._train_episode()
+            self._clear_episode_memory()
+
+    def _train_episode(self):
+        """Train networks using collected trajectory"""
+        if not self.states:
+            return
+
+        # convert to numpy arrays
+        states = np.array(self.states)
+        actions = np.array(self.actions)
+        rewards = np.array(self.rewards)
+        next_states = np.array(self.next_states)
+        dones = np.array(self.dones)
+
+        # get predicted values for all states
+        values = self.critic.predict(states).flatten()
+        next_values = self.critic.predict(next_states).flatten()
+
+        # calculate advantages and returns
+        returns = np.zeros_like(rewards)
+        advantages = np.zeros_like(rewards)
+
+        # calculate discounted returns and advantages
+        for t in range(len(rewards) - 1, -1, -1):
+            # bootstrap from next value if not done
+            next_value = 0 if dones[t] else next_values[t]
+
+            # discounted return (for value function target)
+            if t == len(rewards) - 1:
+                returns[t] = rewards[t] + self.discount_factor * next_value * (1 - dones[t])
+            else:
+                returns[t] = rewards[t] + self.discount_factor * returns[t + 1] * (1 - dones[t])
+
+            # advantage (for policy gradient)
+            advantages[t] = returns[t] - values[t]
+
+        # normalize advantages for stable training
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
+
+        # train critic (value network)
+        for i in range(len(states)):
+            state_i = states[i].reshape(1, -1)
+            value_target = np.array([[returns[i]]])
+            self.critic.train(state_i, value_target)
+
+        # train actor (policy network)
+        for i in range(len(states)):
+            state_i = states[i].reshape(1, -1)
+            action_i = actions[i]
+            advantage_i = advantages[i]
+
+            # get current policy probabilities
+            action_probs = self.actor.predict(state_i)[0]
+
+            # create target probabilities by adding gradient for the selected action
+            target_probs = np.copy(action_probs)
+
+            # policy gradient with entropy bonus
+            entropy = -np.sum(action_probs * np.log(action_probs + 1e-10))
+            target_probs[action_i] += advantage_i + self.entropy_coefficient * entropy
+
+            # normalize and convert to valid probability distribution
+            target_probs = np.clip(target_probs, 1e-6, 1.0 - 1e-6)
+            target_probs = target_probs / np.sum(target_probs)
+
+            # update policy network
+            self.actor.train(state_i, target_probs.reshape(1, -1))
+
+    def _clear_episode_memory(self):
+        """Clear the episode memory after training"""
+        self.states = []
+        self.actions = []
+        self.rewards = []
+        self.next_states = []
+        self.dones = []
