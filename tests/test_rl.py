@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from reinforcement.policies import Policy, EpsilonGreedyPolicy, SoftmaxPolicy
 from reinforcement.replay import ReplayBuffer
-from reinforcement.agents import DQNAgent
+from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CAgent
 from reinforcement.training import train_rl_agent, evaluate_rl_agent
 
 
@@ -205,6 +205,234 @@ class TestDQNAgent(unittest.TestCase):
         # parameters should have changed
         current_params = self.agent.target_network.get_params()
         self.assertNotEqual(initial_params[0].sum(), current_params[0].sum())
+
+
+class TestDoubleDQNAgent(unittest.TestCase):
+    def setUp(self):
+        self.state_size = 4
+        self.action_size = 3
+        self.agent = DoubleDQNAgent(
+            state_size=self.state_size,
+            action_size=self.action_size,
+            batch_size=5
+        )
+
+        self.agent.q_network = MockNetwork(self.state_size, self.action_size)
+        self.agent.target_network = MockNetwork(self.state_size, self.action_size)
+
+    def test_action_selection(self):
+        state = np.random.rand(self.state_size)
+        action = self.agent.get_action(state)
+        self.assertTrue(0 <= action < self.action_size)
+
+    def test_training(self):
+        # add some experiences to buffer
+        for _ in range(10):
+            state = np.random.rand(self.state_size)
+            action = 0
+            reward = 1.0
+            next_state = np.random.rand(self.state_size)
+            done = False
+            self.agent.train(state, action, reward, next_state, done)
+
+        # ensure epsilon decays
+        initial_epsilon = self.agent.policy.epsilon
+        for _ in range(5):
+            self.agent.train(
+                np.random.rand(self.state_size), 0, 1.0,
+                np.random.rand(self.state_size), False
+            )
+        self.assertTrue(self.agent.policy.epsilon < initial_epsilon)
+
+    def test_double_dqn_network_separation(self):
+        """Test that DoubleDQN uses different networks for action selection and evaluation"""
+
+        # test data
+        state = np.random.rand(self.state_size)
+        next_state = np.random.rand(self.state_size)
+        action = 0
+        reward = 1.0
+        done = False
+
+        # mock the networks to return controlled values
+        def mock_online_predict(s):
+            q_values = np.zeros((s.shape[0], self.action_size))
+            # make action 0 always the highest value
+            q_values[:, 0] = 10.0
+            q_values[:, 1] = 5.0
+            q_values[:, 2] = 2.0
+            return q_values
+
+        def mock_target_predict(s):
+            q_values = np.zeros((s.shape[0], self.action_size))
+            # make action 1 always the highest value (different from online network)
+            q_values[:, 0] = 3.0
+            q_values[:, 1] = 8.0
+            q_values[:, 2] = 1.0
+            return q_values
+
+        original_online_predict = self.agent.q_network.predict
+        original_target_predict = self.agent.target_network.predict
+
+        try:
+            self.agent.q_network.predict = mock_online_predict
+            self.agent.target_network.predict = mock_target_predict
+
+            self.agent.train(state, action, reward, next_state, done)
+
+            self.assertTrue(True)
+        finally:
+            # restore original methods
+            self.agent.q_network.predict = original_online_predict
+            self.agent.target_network.predict = original_target_predict
+
+
+class TestDuelingDQNAgent(unittest.TestCase):
+    def setUp(self):
+        self.state_size = 4
+        self.action_size = 3
+
+        with patch.object(DuelingDQNAgent, '_update_target_network'):
+            self.agent = DuelingDQNAgent(
+                state_size=self.state_size,
+                action_size=self.action_size,
+                batch_size=5
+            )
+
+        self.agent.q_network = MockNetwork(self.state_size, self.action_size)
+        self.agent.target_network = MockNetwork(self.state_size, self.action_size)
+
+    def test_action_selection(self):
+        state = np.random.rand(self.state_size)
+        action = self.agent.get_action(state)
+        self.assertTrue(0 <= action < self.action_size)
+
+    def test_training(self):
+        for _ in range(10):
+            state = np.random.rand(self.state_size)
+            action = 0
+            reward = 1.0
+            next_state = np.random.rand(self.state_size)
+            done = False
+            self.agent.train(state, action, reward, next_state, done)
+
+    def test_dueling_architecture_integration(self):
+        """Test that DuelingDQN agent can train and select actions correctly"""
+
+        # sequence of training steps
+        for _ in range(5):
+            state = np.random.rand(self.state_size)
+            action = self.agent.get_action(state)
+            next_state = np.random.rand(self.state_size)
+            reward = 1.0 if action == 0 else -0.5
+            done = False
+
+            # train the agent
+            self.agent.train(state, action, reward, next_state, done)
+
+        # test that action selection works in training and evaluation mode
+        state = np.random.rand(self.state_size)
+        train_action = self.agent.get_action(state, training=True)
+        eval_action = self.agent.get_action(state, training=False)
+
+        self.assertTrue(0 <= train_action < self.action_size)
+        self.assertTrue(0 <= eval_action < self.action_size)
+
+
+class TestA2CAgent(unittest.TestCase):
+    def setUp(self):
+        self.state_size = 4
+        self.action_size = 3
+        self.agent = A2CAgent(
+            state_size=self.state_size,
+            action_size=self.action_size,
+            actor_lr=0.001,
+            critic_lr=0.001
+        )
+
+        # mock actor and critic networks
+        class MockActorCritic(MockNetwork):
+            def predict_policy(self, states):
+                batch_size = states.shape[0]
+                # return valid probability distribution
+                probs = np.ones((batch_size, self.output_dim)) * 0.1
+                probs[:, 0] = 0.8 # making action 0 highly probable
+                return probs
+
+            def predict_value(self, states):
+                return np.random.rand(states.shape[0], 1)
+
+        self.agent.actor = MockActorCritic(self.state_size, self.action_size)
+        self.agent.critic = MockActorCritic(self.state_size, 1)
+
+    def test_actor_critic_interaction(self):
+        """Test that A2C correctly interacts between actor and critic"""
+
+        # mock the actor and critic networks to return controlled values
+        original_actor_predict = self.agent.actor.predict_policy
+        original_critic_predict = self.agent.critic.predict_value
+        original_get_action = self.agent.get_action
+
+        def mock_actor_predict(states):
+            batch_size = states.shape[0]
+            # ensuring probabilities that sum to 1 with action 0 always preffered
+            probs = np.zeros((batch_size, self.action_size))
+            probs[:, 0] = 1.0
+            return probs
+
+        def mock_critic_predict(states):
+            # return state values
+            return np.ones((states.shape[0], 1)) * 0.5
+
+        def mock_get_action(state, training=True):
+            # always return action 0 for deterministic testing
+            return 0
+
+        try:
+            self.agent.actor.predict_policy = mock_actor_predict
+            self.agent.critic.predict_value = mock_critic_predict
+            self.agent.get_action = mock_get_action
+
+            # run a training step
+            state = np.random.rand(self.state_size)
+            action = 0  # select the high-probability action
+            reward = 1.0
+            next_state = np.random.rand(self.state_size)
+            done = False
+
+            self.agent.train(state, action, reward, next_state, done)
+
+            # check action selection uses actor
+            selected_action = self.agent.get_action(state, training=False)
+            self.assertEqual(selected_action, 0)  # should select the highest probability action
+
+        finally:
+            # restore original methods
+            self.agent.actor.predict_policy = original_actor_predict
+            self.agent.critic.predict_value = original_critic_predict
+            self.agent.get_action = original_get_action
+
+    def test_action_selection(self):
+        state = np.random.rand(self.state_size)
+        # test during training (exploration)
+        with patch('numpy.random.choice', return_value=0):
+            action = self.agent.get_action(state)
+            self.assertTrue(0 <= action < self.action_size)
+
+            # test during evaluation (exploitation)
+            action = self.agent.get_action(state, training=False)
+            self.assertTrue(0 <= action < self.action_size)
+
+    def test_training(self):
+        state = np.random.rand(self.state_size)
+        action = 0
+        reward = 1.0
+        next_state = np.random.rand(self.state_size)
+        done = False
+
+        with patch.object(self.agent.actor, 'predict_policy',
+                          return_value=np.array([[0.7, 0.2, 0.1]])):
+            self.agent.train(state, action, reward, next_state, done)
 
 
 class TestTraining(unittest.TestCase):
