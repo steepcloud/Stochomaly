@@ -1,8 +1,10 @@
 import unittest
 import numpy as np
-from feature_engineering.base import FeatureTransformer
 from feature_engineering.autoencoder import Autoencoder
 from feature_engineering.manifold import UMAP
+from feature_engineering.isolation_forest import IsolationForestFeatures
+from feature_engineering.lof import LOFFeatures
+from feature_engineering.pipeline import FeatureEngineeringPipeline
 
 
 class TestFeatureEngineering(unittest.TestCase):
@@ -78,6 +80,66 @@ class TestFeatureEngineering(unittest.TestCase):
         # expected distances: [[0, 1, 1], [1, 0, 2], [1, 2, 0]]
         expected = np.array([[0, 1, 1], [1, 0, 2], [1, 2, 0]])
         np.testing.assert_almost_equal(distances, expected)
+
+    def test_isolation_forest_features(self):
+        # test IsolationForest feature extractor
+        if_extractor = IsolationForestFeatures(n_estimators=10)
+        if_extractor.fit(self.X)
+
+        # transform data
+        scores = if_extractor.transform(self.X)
+
+        # check output shape (should be n_samples x 1)
+        self.assertEqual(scores.shape, (100, 1))
+
+        # check if values are in expected range for anomaly scores
+        self.assertTrue(np.all(np.isfinite(scores)))
+
+    def test_lof_features(self):
+        # test LOF feature extractor
+        lof_extractor = LOFFeatures(n_neighbors=5, novelty=True)
+        lof_extractor.fit(self.X)
+
+        # transform data
+        scores = lof_extractor.transform(self.X)
+
+        # check output shape (should be n_samples x 1)
+        self.assertEqual(scores.shape, (100, 1))
+
+        # check if values are in expected range
+        self.assertTrue(np.all(np.isfinite(scores)))
+
+    def test_feature_engineering_pipeline(self):
+        # test the complete pipeline
+        pipeline = FeatureEngineeringPipeline(
+            autoencoder_params={
+                'input_dim': 10,
+                'hidden_dim': 8,
+                'latent_dim': 3,
+                'epochs': 2
+            },
+            if_params={
+                'n_estimators': 10
+            },
+            lof_params={
+                'n_neighbors': 5
+            }
+        )
+
+        # fit pipeline
+        pipeline.fit(self.X)
+
+        # transform data
+        transformed = pipeline.transform(self.X)
+
+        # expected shape: original features (10) + autoencoder latent (3) + IF (1) + LOF (1)
+        expected_features = 10 + 3 + 1 + 1
+        self.assertEqual(transformed.shape, (100, expected_features))
+
+        # check all transformers were created
+        self.assertIn('autoencoder', pipeline.transformers)
+        self.assertIn('isolation_forest', pipeline.transformers)
+        self.assertIn('lof', pipeline.transformers)
 
 
 if __name__ == '__main__':
