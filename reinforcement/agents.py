@@ -134,3 +134,62 @@ class DQNAgent:
         self.step_count += 1
         if self.step_count % self.update_target_every == 0:
             self._update_target_network()
+
+
+class DoubleDQNAgent(DQNAgent):
+    """Double DQN agent that reduces value overestimation"""
+
+    def __init__(self, state_size, action_size, hidden_size=64,
+                 learning_rate=0.001, discount_factor=0.99,
+                 epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995,
+                 batch_size=64, update_target_every=10,
+                 policy=None, memory_size=10000):
+
+        super().__init__(state_size, action_size, hidden_size,
+                         learning_rate, discount_factor,
+                         epsilon_start, epsilon_end, epsilon_decay,
+                         batch_size, update_target_every,
+                         policy, memory_size)
+
+    def train(self, state, action, reward, next_state, done):
+        """Train agent using Double DQN algorithm"""
+        # add to replay buffer
+        self.replay_buffer.add(state, action, reward, next_state, done)
+
+        # only train if we have enough samples
+        if len(self.replay_buffer) < self.batch_size:
+            return
+
+        # sample mini-batch
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
+
+        # DOUBLE DQN: Use main network for action selection
+        next_actions = np.argmax(self.q_network.predict(next_states), axis=1)
+
+        # use target network for value evaluation
+        next_q_values = self.target_network.predict(next_states)
+
+        # get the Q-values for the selected actions
+        double_q_values = next_q_values[np.arange(self.batch_size), next_actions]
+
+        # calculate target values
+        targets = rewards + (1 - dones) * self.discount_factor * double_q_values
+
+        # get current Q-values
+        current_q = self.q_network.predict(states)
+
+        # update only the Q-values for the actions taken
+        for i, action in enumerate(actions):
+            current_q[i, action] = targets[i]
+
+        # train network
+        for i in range(len(states)):
+            self.q_network.train(states[i].reshape(1, -1), current_q[i].reshape(1, -1))
+
+        # update epsilon for exploration
+        self.policy.decay_epsilon()
+
+        # periodically update target network
+        self.step_count += 1
+        if self.step_count % self.update_target_every == 0:
+            self._update_target_network()
