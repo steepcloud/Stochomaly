@@ -5,7 +5,8 @@ class AnomalyDetectionEnv:
     """Environment for anomaly detection using reinforcement learning"""
 
     def __init__(self, X_train, y_train=None, X_test=None, y_test=None,
-                 reward_metric='f1', threshold_range=(0.0, 1.0), n_thresholds=10):
+                 reward_metric='f1', threshold_range=(0.0, 1.0), n_thresholds=10,
+                 use_dynamic_thresholds=False, adjustment_frequency=20):
         """
         Args:
             X_train: Training features
@@ -15,6 +16,8 @@ class AnomalyDetectionEnv:
             reward_metric: Metric to use for rewards ('f1', 'accuracy', etc.)
             threshold_range: Range of thresholds to explore
             n_thresholds: Number of threshold steps
+            use_dynamic_thresholds: Whether to dynamically adjust thresholds
+            adjustment_frequency: Frequency of dynamic threshold adjustments (steps)
         """
         self.X_train = X_train
         self.y_train = y_train
@@ -24,6 +27,9 @@ class AnomalyDetectionEnv:
         self.reward_metric = reward_metric
         self.threshold_range = threshold_range
         self.thresholds = np.linspace(threshold_range[0], threshold_range[1], n_thresholds)
+
+        self.use_dynamic_thresholds = use_dynamic_thresholds
+        self.adjustment_frequency = adjustment_frequency
 
         self.current_threshold_idx = 0
         self.anomaly_scores = None
@@ -74,7 +80,7 @@ class AnomalyDetectionEnv:
         done = self.current_step >= self.max_steps
 
         # periodically adjust thresholds
-        if self.current_step % 20 == 0 and self.current_step > 0:
+        if self.use_dynamic_thresholds and self.current_step % self.adjustment_frequency == 0 and self.current_step > 0:
             self.dynamic_threshold_adjustment()
 
         return state, reward, done, {}
@@ -96,6 +102,40 @@ class AnomalyDetectionEnv:
         raw_state = np.array([threshold, mean_score, std_score, ratio_above])
 
         return self.normalize_state(raw_state)
+
+    def get_state(self):
+        """Public method to get the current state representation"""
+        return self._get_state()
+
+    def _calculate_reward(self):
+        """Calculate reward based on chosen metric"""
+
+        threshold = self.thresholds[self.current_threshold_idx]
+
+        if self.y_test is None:
+            # unsupervised case - enhanced reward based on threshold properties
+            ratio_anomalies = np.mean(self.anomaly_scores > threshold)
+
+            # penalize extreme thresholds that classify everything as normal/anomaly
+            if ratio_anomalies < 0.001: # almost no anomalies
+                return -2.0
+            elif ratio_anomalies < 0.01: # very few anomalies
+                return -1.0
+            elif ratio_anomalies > 0.5: # too many anomalies
+                return -1.0
+            elif ratio_anomalies > 0.3: # high proportion of anomalies
+                return -0.5
+
+            # reward stability in reasonable detection range (typically 1-10%)
+            if 0.01 <= ratio_anomalies <= 0.1:
+                return 0.5
+
+            return 0.1
+        else:
+            # supervised case - reward based on classification performance (enhanced metrics)
+            y_pred = (self.anomaly_scores > threshold).astype(int)
+
+            return self.calculate_reward(self.y_test, y_pred, metric=self.reward_metric)
 
     def calculate_reward(self, y_true, y_pred, metric='f1'):
         """Enhanced reward function with multiple metrics for anomaly detection"""
@@ -136,36 +176,6 @@ class AnomalyDetectionEnv:
                 return accuracy_score(y_true, y_pred)
         except:
             return 0.0 # fallback for edge cases
-
-    def _calculate_reward(self):
-        """Calculate reward based on chosen metric"""
-
-        threshold = self.thresholds[self.current_threshold_idx]
-
-        if self.y_test is None:
-            # unsupervised case - enhanced reward based on threshold properties
-            ratio_anomalies = np.mean(self.anomaly_scores > threshold)
-
-            # penalize extreme thresholds that classify everything as normal/anomaly
-            if ratio_anomalies < 0.001: # almost no anomalies
-                return -2.0
-            elif ratio_anomalies < 0.01: # very few anomalies
-                return -1.0
-            elif ratio_anomalies > 0.5: # too many anomalies
-                return -1.0
-            elif ratio_anomalies > 0.3: # high proportion of anomalies
-                return -0.5
-
-            # reward stability in reasonable detection range (typically 1-10%)
-            if 0.01 <= ratio_anomalies <= 0.1:
-                return 0.5
-
-            return 0.1
-        else:
-            # supervised case - reward based on classification performance (enhanced metrics)
-            y_pred = (self.anomaly_scores > threshold).astype(int)
-
-            return self.calculate_reward(self.y_test, y_pred, metric=self.reward_metric)
 
     def set_anomaly_scores(self, scores):
         """Set anomaly scores from external model"""

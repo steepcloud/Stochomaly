@@ -145,6 +145,17 @@ def main():
     parser.add_argument("--rl-threshold-range", type=str, default="0.0,1.0",
                         help="Range of thresholds (min,max) for anomaly detection")
 
+    # Environment specific parameters
+    parser.add_argument("--rl-reward-metric", type=str, default="f1",
+                        choices=["f1", "precision", "recall", "balanced_accuracy", "weighted", "auc"],
+                        help="Metric to use for rewards in anomaly detection")
+    parser.add_argument("--enable-dynamic-threshold", action="store_true",
+                        help="Enable dynamic threshold adjustment during training")
+    parser.add_argument("--adjustment-frequency", type=int, default=20,
+                        help="How often to adjust thresholds (steps)")
+    parser.add_argument("--reward-alpha", type=float, default=0.5,
+                        help="Weight factor for balancing precision and recall in weighted metrics")
+
     args = parser.parse_args()
 
     data_params = {}
@@ -311,7 +322,9 @@ def main():
             y_test=y_test,
             reward_metric=args.rl_reward_metric,
             threshold_range=(threshold_min, threshold_max),
-            n_thresholds=args.rl_n_thresholds
+            n_thresholds=args.rl_n_thresholds,
+            use_dynamic_thresholds=args.enable_dynamic_threshold,
+            adjustment_frequency=args.adjustment_frequency
         )
 
         # create policy
@@ -370,14 +383,14 @@ def main():
         env.reset()
         done = False
         while not done:
-            action = agent.get_action(env._get_state())
+            action = agent.get_action(env.get_state())
             _, _, done, _ = env.step(action)
 
         final_threshold = env.thresholds[env.current_threshold_idx]
         print(f"Final selected threshold: {final_threshold:.4f}")
 
         # calculate anomaly predictions using the final threshold
-        y_pred = (env.anomaly_scores > final_threshold).astype(int)
+        y_pred = np.array(env.anomaly_scores > final_threshold, dtype=int)
         accuracy = np.mean(y_pred == y_test)
 
         print(f"Anomaly detection accuracy: {accuracy * 100:.2f}%")
