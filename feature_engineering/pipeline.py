@@ -23,7 +23,7 @@ class FeatureEngineeringPipeline:
             hidden_dim=self.autoencoder_params.get('hidden_dim', 32),
             latent_dim=self.autoencoder_params.get('latent_dim', 10),
             **{k: v for k, v in self.autoencoder_params.items()
-               if k not in ['hidden_dim', 'latent_dim']}
+               if k not in ['input_dim', 'hidden_dim', 'latent_dim']}
         )
         autoencoder.fit(X)
 
