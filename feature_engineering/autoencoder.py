@@ -1,4 +1,3 @@
-# feature_engineering/autoencoder.py
 import numpy as np
 from feature_engineering.base import FeatureTransformer
 from nn_core.neural_network import NeuralNetwork

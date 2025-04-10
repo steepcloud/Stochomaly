@@ -1,4 +1,3 @@
-# feature_engineering/pca.py
 import numpy as np
 from feature_engineering.base import FeatureTransformer
 
