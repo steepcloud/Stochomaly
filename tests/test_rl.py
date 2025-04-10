@@ -11,6 +11,7 @@ from reinforcement.policies import Policy, EpsilonGreedyPolicy, SoftmaxPolicy
 from reinforcement.replay import ReplayBuffer
 from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CAgent
 from reinforcement.training import train_rl_agent, evaluate_rl_agent
+from reinforcement.environment import AnomalyDetectionEnv
 
 
 class MockEnvironment:
@@ -501,6 +502,88 @@ class TestTraining(unittest.TestCase):
 
         final_reward = evaluate_rl_agent(agent, env, episodes=1, verbose=0)
         self.assertNotEqual(initial_reward, final_reward)
+
+
+class TestAnomalyDetectionEnv(unittest.TestCase):
+    def setUp(self):
+        # simple dataset for testing
+        self.X_train = np.random.rand(100, 5)
+        self.y_train = np.random.randint(0, 2, size=100)
+        self.env = AnomalyDetectionEnv(
+            X_train=self.X_train,
+            y_train=self.y_train,
+            threshold_range=(0.1, 0.9),
+            n_thresholds=10
+        )
+        # set some anomaly scores for testing
+        self.env.anomaly_scores = np.random.rand(100)
+
+    def test_normalize_state(self):
+        """Test that state normalization works correctly"""
+        raw_state = np.array([0.5, 0.7, 0.3, 0.2])  # threshold, mean, std, ratio
+        normalized = self.env.normalize_state(raw_state)
+
+        # check threshold normalized to [0,1] range
+        self.assertAlmostEqual(normalized[0], (0.5 - 0.1) / (0.9 - 0.1), places=5)
+
+        # check std normalization
+        self.assertAlmostEqual(normalized[2], min(0.3 / 0.5, 1.0), places=5)
+
+    def test_dynamic_threshold_adjustment(self):
+        """Test threshold adjustment based on rewards"""
+        # simulate some reward history
+        self.env.reward_history = [0.1, 0.3, 0.2, 0.5, 0.4, 0.6, 0.7, 0.6, 0.8, 0.7, 0.9]
+
+        # record original thresholds
+        original_thresholds = self.env.thresholds.copy()
+
+        # run adjustment
+        self.env.dynamic_threshold_adjustment()
+
+        # check thresholds changed
+        self.assertFalse(np.array_equal(original_thresholds, self.env.thresholds))
+
+    def test_reward_metrics(self):
+        """Test different reward metrics"""
+        # test with various synthetic data
+        y_true = np.array([0, 1, 0, 1, 0])
+        y_pred = np.array([0, 1, 1, 1, 0])
+
+        # test different metrics
+        f1 = self.env.calculate_reward(y_true, y_pred, metric='f1')
+        precision = self.env.calculate_reward(y_true, y_pred, metric='precision')
+        recall = self.env.calculate_reward(y_true, y_pred, metric='recall')
+        weighted = self.env.calculate_reward(y_true, y_pred, metric='weighted')
+
+        # basic verification of results
+        self.assertGreaterEqual(f1, 0)
+        self.assertLessEqual(f1, 1)
+        self.assertGreaterEqual(precision, 0)
+        self.assertGreaterEqual(recall, 0)
+
+    def test_env_rl_integration(self):
+        """Test environment integration with RL pipeline"""
+        from reinforcement.agents import DQNAgent
+
+        # simple DQN agent
+        agent = DQNAgent(
+            state_size=4,  # matches environment state size
+            action_size=3,  # matches environment action size
+            batch_size=5
+        )
+
+        # test basic interaction
+        state = self.env.reset()
+        self.assertEqual(len(state), 4)  # check state dimensions
+
+        # take a step
+        action = agent.get_action(state)
+        next_state, reward, done, _ = self.env.step(action)
+
+        # basic checks
+        self.assertEqual(len(next_state), 4)
+        self.assertIsInstance(reward, (int, float))
+        self.assertIsInstance(done, bool)
 
 
 if __name__ == '__main__':
