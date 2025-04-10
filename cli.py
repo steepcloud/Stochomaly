@@ -5,11 +5,32 @@ from data.preprocess import load_data, preprocess_data
 from feature_engineering.pca import PCA
 from feature_engineering.autoencoder import Autoencoder
 from feature_engineering.manifold import UMAP
-from reinforcement.agents import DQNAgent
+from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CAgent
 from reinforcement.policies import EpsilonGreedyPolicy, SoftmaxPolicy
 from reinforcement.training import train_rl_agent, evaluate_rl_agent
 from reinforcement.environment import AnomalyDetectionEnv
 import os
+
+
+def create_agent(agent_type, state_size, action_size, **kwargs):
+    if agent_type == "dqn":
+        return DQNAgent(state_size, action_size, **kwargs)
+    elif agent_type == "double_dqn":
+        return DoubleDQNAgent(state_size, action_size, **kwargs)
+    elif agent_type == "dueling_dqn":
+        return DuelingDQNAgent(state_size, action_size, **kwargs)
+    elif agent_type == "a2c":
+        a2c_params = {
+            'hidden_size': kwargs.get('hidden_size', 64),
+            'actor_lr': kwargs.get('learning_rate', 0.001),
+            'critic_lr': kwargs.get('learning_rate', 0.001),
+            'discount_factor': kwargs.get('discount_factor', 0.99),
+            'entropy_coefficient': kwargs.get('entropy_coefficient', 0.01),
+            'max_grad_norm': kwargs.get('max_grad_norm', 0.5)
+        }
+        return A2CAgent(state_size, action_size, **a2c_params)
+    else:
+        raise ValueError(f"Unknown agent type: {agent_type}")
 
 
 def main():
@@ -52,6 +73,9 @@ def main():
                         default='none', help='Feature engineering method to use')
     parser.add_argument('--output-dim', type=int, default=2,
                         help='Output dimension for feature engineering')
+    parser.add_argument("--rl-agent", type=str, default="dqn",
+                        choices=["dqn", "double_dqn", "dueling_dqn", "a2c"],
+                        help="Type of reinforcement learning agent to use")
 
     # Scheduler-specific parameters
     # StepLR parameters
@@ -308,7 +332,8 @@ def main():
         state_size = 4  # based on AnomalyDetectionEnv's state representation
         action_size = 3  # decrease, keep, increase threshold
 
-        agent = DQNAgent(
+        agent = create_agent(
+            agent_type=args.rl_agent,
             state_size=state_size,
             action_size=action_size,
             learning_rate=args.rl_learning_rate,

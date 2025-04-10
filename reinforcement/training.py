@@ -51,8 +51,15 @@ def train_rl_agent(agent, environment, episodes=100, max_steps=100,
 
         # log progress
         if verbose > 0 and (episode % eval_interval == 0 or episode == episodes - 1):
+            if hasattr(agent, 'policy') and hasattr(agent.policy, 'epsilon'):
+                epsilon = agent.policy.epsilon
+            elif hasattr(agent, 'epsilon'):
+                epsilon = agent.epsilon
+            else:
+                epsilon = 0.0 # for agents that don't use epsilon
+
             print(f"Episode {episode + 1}/{episodes} | Reward: {episode_reward:.4f} | "
-                  f"Avg Reward: {avg_reward:.4f} | Epsilon: {agent.epsilon:.4f}")
+                  f"Avg Reward: {avg_reward:.4f} | Epsilon: {epsilon:.4f}")
 
     if verbose > 0:
         from plot_utils import plot_learning_curve
