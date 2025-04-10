@@ -5,6 +5,7 @@ from data.preprocess import load_data, preprocess_data
 from feature_engineering.pca import PCA
 from feature_engineering.autoencoder import Autoencoder
 from feature_engineering.manifold import UMAP
+from feature_engineering.pipeline import FeatureEngineeringPipeline
 from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CAgent
 from reinforcement.policies import EpsilonGreedyPolicy, SoftmaxPolicy
 from reinforcement.training import train_rl_agent, evaluate_rl_agent
@@ -156,6 +157,15 @@ def main():
     parser.add_argument("--reward-alpha", type=float, default=0.5,
                         help="Weight factor for balancing precision and recall in weighted metrics")
 
+    # Enhanced feature engineering pipeline
+    parser.add_argument("--use-enhanced-features", action="store_true",
+                        help="Use enhanced feature engineering pipeline (autoencoder + isolation forest + LOF)")
+    parser.add_argument("--ae-latent-dim", type=int, default=10, help="Autoencoder latent dimension")
+    parser.add_argument("--if-n-estimators", type=int, default=100, help="Isolation Forest estimators")
+    parser.add_argument("--if-contamination", type=float, default=0.1,
+                        help="Isolation Forest expected outlier proportion")
+    parser.add_argument("--lof-n-neighbors", type=int, default=20, help="LOF neighbors count")
+
     args = parser.parse_args()
 
     data_params = {}
@@ -174,6 +184,34 @@ def main():
         y = (y > 0).astype(int)
 
     X_train, X_test, y_train, y_test = preprocess_data(X, y, scaler_type=args.scaler)
+
+    if args.use_enhanced_features:
+        print("Applying enhanced feature engineeering pipeline...")
+
+        pipeline = FeatureEngineeringPipeline(
+            autoencoder_params = {
+                'input_dim': X_train.shape[1],
+                'hidden_dim': args.ae_hidden_dim,
+                'latent_dim': args.ae_latent_dim,
+                'epochs': args.ae_epochs,
+                'batch_size': args.ae_batch_size
+            },
+            if_params = {
+                'n_estimators': args.if_n_estimators,
+                'contamination': args.if_contamination
+            },
+            lof_params = {
+                'n_neighbors': args.lof_n_neighbors
+            }
+        )
+
+        pipeline.fit(X_train)
+        X_train = pipeline.transform(X_train)
+        X_test = pipeline.transform(X_test)
+        print(f"Enhanced features: {X_train.shape[1]} dimensions")
+
+        # skipping regular feature engineering if enhanced is used
+        args.feature_engineering = 'none'
 
     if args.feature_engineering != 'none':
         print(f"Applying {args.feature_engineering} feature engineering...")
