@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_curve, auc
+from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve
 import numpy as np
 import os
 
@@ -107,3 +107,23 @@ def plot_learning_curve(rewards_history, avg_rewards_history, save_path='plots/l
         plt.show()
     else:
         plt.close()
+
+def plot_precision_recall_curve(y_true, y_scores, save_path='plots/precision_recall_curve.png'):
+    """Plot precision-recall curve.
+
+    Args:
+        y_true: True binary labels
+        y_scores: Predicted probabilities or scores
+        save_path: Path to save the plot
+    """
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    precision, recall, thresholds = precision_recall_curve(y_true, y_scores)
+    plt.figure(figsize=(10, 6))
+    plt.plot(recall, precision, marker='.')
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Precision-Recall Curve')
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
