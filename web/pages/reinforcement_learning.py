@@ -1,5 +1,6 @@
 import reflex as rx
 from web.models.app_state import AppState
+from web.models.training_state import TrainingState
 
 
 def rl_config():
@@ -263,9 +264,76 @@ def reinforcement_learning_page():
             rx.text("Configure and train an RL agent for anomaly detection"),
 
             rl_config(),
+            rl_training_progress(),
 
             width="100%",
             spacing="4",
         ),
         padding="6",
+    )
+
+
+def rl_training_progress():
+    return rx.box(
+        rx.heading("Training Progress", size="3"),
+        rx.cond(
+            TrainingState.is_training,
+            rx.vstack(
+                rx.hstack(
+                    rx.box(
+                        rx.text("Episode", font_weight="bold"),
+                        rx.text(f"{TrainingState.rl_current_episode}/{TrainingState.rl_total_episodes}", font_size="xl"),
+                        rx.text(f"{(TrainingState.rl_current_episode / TrainingState.rl_total_episodes * 100):.1f}% complete",
+                               color="gray.600", font_size="sm"),
+                        padding="2",
+                    ),
+                    rx.box(
+                        rx.text("Best Reward", font_weight="bold"),
+                        rx.text(f"{max(TrainingState.rl_rewards_history) if TrainingState.rl_rewards_history else 0:.4f}",
+                               font_size="xl"),
+                        padding="2",
+                    ),
+                    rx.box(
+                        rx.text("Best Threshold", font_weight="bold"),
+                        rx.text(f"{TrainingState.rl_best_threshold or 0:.4f}", font_size="xl"),
+                        padding="2",
+                    ),
+                    width="100%",
+                    justify="space_between",
+                ),
+                rx.progress(value=TrainingState.training_progress * 100, width="100%"),
+
+                # Add charts if you have data
+                rx.cond(
+                    len(TrainingState.rl_rewards_history) > 0,
+                    rx.vstack(
+                        rx.heading("Rewards History", size="4"),
+                        rx.plotly(
+                            data=[
+                                {
+                                    "x": [i for i in range(len(TrainingState.rl_rewards_history))],
+                                    "y": TrainingState.rl_rewards_history,
+                                    "type": "scatter",
+                                    "mode": "lines",
+                                    "name": "Rewards",
+                                }
+                            ],
+                            layout={"title": "Rewards per Episode"},
+                            width="100%",
+                            height="300px",
+                        ),
+                    ),
+                    rx.text("No training data yet"),
+                ),
+
+                width="100%",
+            ),
+            rx.text("Click 'Start RL Training' to begin training")
+        ),
+        padding="4",
+        border_radius="md",
+        border="1px solid",
+        border_color="gray.200",
+        margin_y="4",
+        width="100%",
     )
