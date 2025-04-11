@@ -4,7 +4,7 @@ from trainer.train import Trainer
 from data.preprocess import load_data, preprocess_data
 from feature_engineering.pca import PCA
 from feature_engineering.autoencoder import Autoencoder
-from feature_engineering.manifold import UMAP
+from feature_engineering.manifold import UMAP, TSNE
 from feature_engineering.pipeline import FeatureEngineeringPipeline
 from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CAgent
 from reinforcement.policies import EpsilonGreedyPolicy, SoftmaxPolicy
@@ -70,7 +70,8 @@ def main():
                         help='Name of sklearn dataset')
     parser.add_argument('--csv_filepath', type=str, help='Path to CSV file')
     parser.add_argument('--target_col', type=str, help='Target column name for CSV data')
-    parser.add_argument('--feature-engineering', type=str, choices=['none', 'pca', 'autoencoder', 'umap'],
+    parser.add_argument('--feature-engineering', type=str,
+                        choices=['none', 'pca', 'autoencoder', 'umap', 'tsne'],
                         default='none', help='Feature engineering method to use')
     parser.add_argument('--output-dim', type=int, default=2,
                         help='Output dimension for feature engineering')
@@ -112,6 +113,14 @@ def main():
                         help='Minimum distance parameter for UMAP')
     parser.add_argument('--n-iter', type=int, default=200,
                         help='Number of iterations for UMAP optimization')
+
+    # t-SNE specific parameters
+    parser.add_argument('--perplexity', type=float, default=30.0,
+                        help='Perplexity parameter for t-SNE (balance between local and global structure)')
+    parser.add_argument('--tsne-learning-rate', type=float, default=200.0,
+                        help='Learning rate for t-SNE')
+    parser.add_argument('--tsne-iterations', type=int, default=1000,
+                        help='Number of iterations for t-SNE optimization')
 
     # Autoencoder specific parameters
     parser.add_argument('--ae-hidden-dim', type=int, default=8,
@@ -240,6 +249,14 @@ def main():
                 n_neighbors=n_neighbors,
                 min_dist=args.min_dist,
                 n_iter=args.n_iter
+            )
+
+        elif args.feature_engineering == 'tsne':
+            transformer = TSNE(
+                n_components=args.output_dim,
+                perplexity=args.perplexity,
+                learning_rate=args.tsne_learning_rate,
+                n_iter=args.tsne_iterations
             )
 
         X_train = transformer.fit_transform(X_train)
