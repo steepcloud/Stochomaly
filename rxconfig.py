@@ -1,7 +1,7 @@
 import reflex as rx
 
 config = rx.Config(
-    app_name="stochomaly",
+    app_name="app",
     api_url="/api",
     db_url="sqlite:///reflex.db",
     env=rx.Env.DEV,
