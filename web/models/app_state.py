@@ -524,7 +524,7 @@ class AppState(rx.State):
             self.is_training = False
             return rx.toast(f"RL training error: {str(e)}", duration=5000, color_scheme="red")
 
-    def reset(self):
+    def reset_app_state(self):
         """Reset application state"""
         self.current_step = 1
         self.X_train = []
