@@ -1,0 +1,6 @@
+numpy~=1.24.2
+scikit-learn~=1.6.1
+utils~=1.0.1
+matplotlib~=3.8.2
+seaborn~=0.13.2
+tqdm~=4.66.1
