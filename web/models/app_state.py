@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.preprocess import load_data, preprocess_data
 from feature_engineering.pca import PCA
 from feature_engineering.autoencoder import Autoencoder
-from feature_engineering.manifold import UMAP
+from feature_engineering.manifold import UMAP, TSNE
 from feature_engineering.pipeline import FeatureEngineeringPipeline
 from trainer.train import Trainer
 
@@ -40,6 +40,11 @@ class AppState(rx.State):
     n_neighbors: int = 15
     min_dist: float = 0.1
     n_iter: int = 200
+
+    # t-SNE specific parameters
+    perplexity: float = 30.0
+    tsne_learning_rate: float = 200.0
+    tsne_iterations: int = 1000
 
     # Model parameters
     model_mode: str = "nn"  # nn or rl
@@ -219,6 +224,15 @@ class AppState(rx.State):
     def set_n_iter(self, n: int):
         self.n_iter = n
 
+    def set_perplexity(self, value: float):
+        self.perplexity = value
+
+    def set_tsne_learning_rate(self, value: float):
+        self.tsne_learning_rate = value
+
+    def set_tsne_iterations(self, value: int):
+        self.tsne_iterations = value
+
     def set_model_mode(self, mode: str):
         self.model_mode = mode
 
@@ -294,6 +308,14 @@ class AppState(rx.State):
                     n_neighbors=n_neighbors,
                     min_dist=self.min_dist,
                     n_iter=self.n_iter
+                )
+
+            elif self.feature_method == "tsne":
+                transformer = TSNE(
+                    n_components=self.output_dim,
+                    perplexity=self.perplexity,
+                    learning_rate=self.tsne_learning_rate,
+                    n_iter=self.tsne_iterations
                 )
 
             elif self.feature_method == "enhanced":
