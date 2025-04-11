@@ -57,7 +57,7 @@ class Trainer:
         return kl_div
 
     def train(self, X, y, X_val=None, y_val=None, epochs=1000, batch_size=1, save_plot=True, save_model_path=None,
-              n_samples=1):
+              n_samples=1, progress_callback=None):
         """Trains the neural network with mini-batches and optionally saves a loss plot and model."""
         loss_history = []
         total_batches = len(X) // batch_size
@@ -110,6 +110,9 @@ class Trainer:
 
             avg_loss = np.mean(epoch_losses)
             loss_history.append(avg_loss)
+
+            if progress_callback is not None:
+                progress_callback(epoch, epochs, avg_loss)
 
             if self.use_bayesian and epoch % 100 == 0:
                 avg_kl = np.mean(epoch_kl_losses)

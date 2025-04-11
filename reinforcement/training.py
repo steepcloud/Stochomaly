@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 def train_rl_agent(agent, environment, episodes=100, max_steps=100,
-                   render=False, verbose=1, eval_interval=10):
+                   verbose=1, eval_interval=10, progress_callback=None):
     """
     Train a reinforcement learning agent on an environment
 
@@ -13,9 +13,9 @@ def train_rl_agent(agent, environment, episodes=100, max_steps=100,
         environment: Environment with reset and step methods
         episodes: Number of episodes to train
         max_steps: Maximum steps per episode
-        render: Whether to render the environment
         verbose: Verbosity level
         eval_interval: Episodes between evaluations
+        progres_callback: Callback for UI progress updates
 
     Returns:
         Dictionary with training statistics
@@ -48,6 +48,9 @@ def train_rl_agent(agent, environment, episodes=100, max_steps=100,
         rewards_history.append(episode_reward)
         avg_reward = np.mean(rewards_history[-100:])
         avg_rewards_history.append(avg_reward)
+
+        if progress_callback is not None:
+            progress_callback(episode, episodes, episode_reward)
 
         # log progress
         if verbose > 0 and (episode % eval_interval == 0 or episode == episodes - 1):
