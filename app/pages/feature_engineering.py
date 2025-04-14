@@ -1,5 +1,5 @@
 import reflex as rx
-from web.models.app_state import AppState
+from app.models.app_state import AppState
 
 
 def dimensionality_reduction_config():

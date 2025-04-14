@@ -1,6 +1,6 @@
 import reflex as rx
-from web.models.app_state import AppState
-from web.components.metrics import metric_card, metrics_grid
+from app.models.app_state import AppState
+from app.components.metrics import metric_card, metrics_grid
 
 
 def welcome_section():

@@ -1,6 +1,6 @@
 import reflex as rx
-from web.models.app_state import AppState
-from web.models.training_state import TrainingState
+from app.models.app_state import AppState
+from app.models.training_state import TrainingState
 
 
 def nn_config():
