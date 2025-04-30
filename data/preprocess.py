@@ -1,12 +1,10 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 
 
 def load_data(source="xor", **kwargs):
     """Load dataset from a file or database."""
-    # This is just a placeholder for actual data loading
-    # In your case, it can be reading a CSV file, database, or a custom data loader
     if source == "xor":
         X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])  # Example XOR dataset
         y = np.array([[0], [1], [1], [0]])  # Example XOR output
@@ -115,8 +113,10 @@ def preprocess_data(X, y, scaler_type='standard', test_size=0.25, random_state=4
         scaler = StandardScaler()
     elif scaler_type == 'minmax':
         scaler = MinMaxScaler()
+    elif scaler_type == 'robust':
+        scaler = RobustScaler()
     else:
-        raise ValueError("Unsupported scaler type. Use 'standard' or 'minmax'.")
+        raise ValueError("Unsupported scaler type. Use 'standard', 'minmax', or 'robust'.")
 
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)

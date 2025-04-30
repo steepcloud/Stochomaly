@@ -49,7 +49,9 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size for training")
     parser.add_argument("--save-model", type=str, help="Path to save trained model")
     parser.add_argument("--load-model", type=str, help="Path to load saved model")
-    parser.add_argument('--scaler', type=str, default='minmax', help='Data scaling method')
+    parser.add_argument('--scaler', type=str, default='minmax',
+                        choices=['standard', 'minmax', 'robust'],
+                        help='Data scaling method (standard, minmax, or robust)')
     parser.add_argument("--momentum", type=float, default=0.9, help="Momentum for the optimizer")
     parser.add_argument("--weight-decay", type=float, default=0.01, help="Weight decay for the optimizer")
     parser.add_argument("--dropout-rate", type=float, default=0.5, help="Dropout rate for the model")
