@@ -4,5 +4,3 @@ utils~=1.0.1
 matplotlib~=3.8.2
 seaborn~=0.13.2
 tqdm~=4.66.3
-reflex~=0.7.6
-plotly~=6.0.1
