@@ -56,6 +56,9 @@ def main():
     parser.add_argument("--scheduler", type=str, default=None,
                         choices=["StepLR", "ExponentialLR", "ReduceLROnPlateau", "CosineAnnealingLR"],
                         help="Learning rate scheduler to use")
+    parser.add_argument("--loss-function", type=str, default="mse",
+                        choices=["mse", "mae", "binary_crossentropy"],
+                        help="Loss function for neural network training")
     parser.add_argument("--early-stopping-patience", type=int, default=20,
                         help="Number of epochs with no improvement after which training stops")
     parser.add_argument("--early-stopping-min-improvement", type=float, default=0.001,
@@ -315,7 +318,8 @@ def main():
             scheduler_params=scheduler_params,
             use_batch_norm=args.use_batch_norm,
             use_bayesian=args.use_bayesian,
-            kl_weight=args.kl_weight
+            kl_weight=args.kl_weight,
+            loss_function=args.loss_function
         )
 
         # Load model if specified

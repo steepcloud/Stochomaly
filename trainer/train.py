@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 from nn_core.neural_network import NeuralNetwork
-from nn_core.losses import mse_loss
+from nn_core.losses import mse_loss, mae_loss, binary_crossentropy
 from plot_utils import plot_loss
 from nn_core.schedulers import StepLR, ReduceLROnPlateau, ExponentialLR, CosineAnnealingLR
 
@@ -12,19 +12,26 @@ class Trainer:
                  activation="relu", output_activation="sigmoid", optimizer="adam", learning_rate=0.01,
                  weight_decay=0.0, momentum=0.9, dropout_rate=0.0, use_batch_norm=False,
                  early_stopping_patience=10, early_stopping_min_improvement=0.001,
-                 scheduler_type=None, scheduler_params=None, use_bayesian=False, kl_weight=1.0):
+                 scheduler_type=None, scheduler_params=None, use_bayesian=False, kl_weight=1.0, loss_function="mse"):
         """Initialize the trainer with hyperparameters."""
         self.nn = NeuralNetwork(input_size, hidden_size, output_size,
                                 activation=activation, output_activation=output_activation, optimizer=optimizer,
                                 learning_rate=learning_rate, weight_decay=weight_decay,
                                 momentum=momentum, dropout_rate=dropout_rate,
-                                use_batch_norm=use_batch_norm, use_bayesian=use_bayesian)
+                                use_batch_norm=use_batch_norm, use_bayesian=use_bayesian, loss_function=loss_function)
 
         self.use_bayesian = use_bayesian
         self.kl_weight = kl_weight
 
         self.scheduler_type = scheduler_type
         self.scheduler_params = scheduler_params if scheduler_params else {}
+
+        self.loss_functions = {
+            "mse": mse_loss,
+            "mae": mae_loss,
+            "binary_crossentropy": binary_crossentropy
+        }
+        self.loss_function = self.loss_functions.get(loss_function, mse_loss)
 
         if self.scheduler_type == "StepLR":
             self.scheduler = StepLR(self.nn.optimizer, **self.scheduler_params)
@@ -85,8 +92,8 @@ class Trainer:
                     # average predictions across samples
                     avg_pred = np.mean(batch_predictions, axis=0)
 
-                    # compute MSE loss
-                    mse = mse_loss(y_batch, avg_pred)
+                    # compute loss with selected loss function
+                    loss_value = self.loss_function(y_batch, avg_pred)
 
                     # compute KL divergence
                     kl_div = self.compute_kl_divergence()
@@ -94,8 +101,8 @@ class Trainer:
                     # Scale KL by batch size / dataset size (for proper ELBO calculation)
                     kl_weight = self.kl_weight * (len(X_batch) / len(X))
 
-                    # Total loss = MSE + KL_weight * KL
-                    total_loss = mse + kl_weight * kl_div
+                    # Total loss = loss_value(default MSE) + KL_weight * KL
+                    total_loss = loss_value + kl_weight * kl_div
 
                     # Backward pass
                     output_error = avg_pred - y_batch
@@ -104,7 +111,7 @@ class Trainer:
                     epoch_losses.append(total_loss)
                     epoch_kl_losses.append(kl_div)
                 else:
-                    # Call `train` method from `neural_network.py` (one batch at a time)
+                    # call `train` method from `nn_core/neural_network.py` (one batch at a time)
                     loss = self.nn.train(X_batch, y_batch, return_loss=True)
                     epoch_losses.append(loss)
 
@@ -128,7 +135,7 @@ class Trainer:
                         val_predictions.append(pred)
 
                     val_pred_avg = np.mean(val_predictions, axis=0)
-                    val_loss = mse_loss(y_val, val_pred_avg)
+                    val_loss = self.loss_function(y_val, val_pred_avg)
 
                     # add KL term to validation loss for consistent comparison
                     val_kl = self.compute_kl_divergence() * (len(X_val) / len(X))

@@ -2,7 +2,7 @@ import numpy as np
 from nn_core.activations import sigmoid, relu, leaky_relu, elu, swish, gelu
 from nn_core.activations import sigmoid_derivative, relu_derivative, leaky_relu_derivative, elu_derivative, \
     swish_derivative, gelu_derivative
-from nn_core.losses import mse_loss
+from nn_core.losses import mse_loss, mae_loss, binary_crossentropy
 from nn_core.optimizers import SGD, Momentum, RMSprop, Adam
 from nn_core.layers import BatchNorm
 from nn_core.bayesian_layers import BayesianLinear
@@ -13,7 +13,7 @@ class NeuralNetwork:
 
     def __init__(self, input_size, hidden_size, output_size, activation="relu", output_activation="sigmoid",
                  optimizer="sgd", learning_rate=0.01, weight_decay=0.0, momentum=0.9, dropout_rate=0.0,
-                 use_batch_norm=False, use_bayesian=False):
+                 use_batch_norm=False, use_bayesian=False, loss_function="mse"):
         """Initialize weights, biases, activation functions, optimizers, batch normalization layers and optional Bayesian layers."""
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
@@ -24,6 +24,7 @@ class NeuralNetwork:
         self.optimizer = self.get_optimizer(optimizer, momentum)
         self.dropout_rate = dropout_rate
         self.use_bayesian = use_bayesian
+        self.loss_function = self.get_loss_function(loss_function)
 
         if activation in ["relu", "leaky_relu", "elu"]:
             weight_init = he_initializer
@@ -126,6 +127,15 @@ class NeuralNetwork:
         }
         return optimizers.get(name, SGD(self.learning_rate))  # Default to SGD
 
+    def get_loss_function(self, name):
+        """Returns the selected loss function."""
+        loss_functions = {
+            "mse": mse_loss,
+            "mae": mae_loss,
+            "binary_crossentropy": binary_crossentropy
+        }
+        return loss_functions.get(name, mse_loss) # Default to MSE if invalid
+
     def forward(self, X, training=True):
         """Forward pass with dropout support and optional batch normalization."""
         if self.use_bayesian:
@@ -198,7 +208,7 @@ class NeuralNetwork:
     def train(self, X, y, return_loss=False):
         """Perform one step of forward pass, loss computation, and backpropagation."""
         output = self.forward(X, training=True)
-        loss = mse_loss(y, output)
+        loss = self.loss_function(y, output)
         self.backward(X, y)
 
         if return_loss:
