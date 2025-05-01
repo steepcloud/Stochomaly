@@ -426,6 +426,16 @@ class A2CAgent:
         state_array = np.array(state).reshape(1, -1)
         action_probs = self.actor.predict(state_array)[0]
 
+        # ensure valid probabilities
+        action_probs = np.nan_to_num(action_probs)
+        action_probs = np.clip(action_probs, 0.0, 1.0)
+
+        prob_sum = np.sum(action_probs)
+        if prob_sum <= 0:
+            action_probs = np.ones(self.action_size) / self.action_size
+        else:
+            action_probs /= prob_sum
+            
         if training:
             # sample from action probability distribution for exploration
             action = np.random.choice(self.action_size, p=action_probs)

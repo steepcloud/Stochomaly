@@ -127,3 +127,120 @@ def plot_precision_recall_curve(y_true, y_scores, save_path='plots/precision_rec
     plt.grid(True)
     plt.savefig(save_path)
     plt.close()
+
+def plot_decision_boundary(model, X, y, save_path='plots/decision_boundary.png'):
+    """Plot decision boundary of binary classifier.
+    
+    Args:
+        model: Model with predict method
+        X: 2D feature matrix (or will be reduced to 2D)
+        y: Target labels
+        save_path: Path to save the plot
+    """
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    if X.shape[1] > 2:
+        pca = PCA(n_components=2)
+        X_2d = pca.fit_transform(X)
+        feature_names = ['PCA Component 1', 'PCA Component 2']
+    else:
+        X_2d = X
+        feature_names = ['Feature 1', 'Feature 2']
+    
+    margin = 0.5
+    x_min, x_max = X_2d[:, 0].min() - margin, X_2d[:, 0].max() + margin
+    y_min, y_max = X_2d[:, 1].min() - margin, X_2d[:, 1].max() + margin
+    h = (x_max - x_min) / 100
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    
+    if X.shape[1] > 2:
+        grid_points = pca.inverse_transform(np.c_[xx.ravel(), yy.ravel()])
+    else:
+        grid_points = np.c_[xx.ravel(), yy.ravel()]
+    
+    Z = model.predict(grid_points).reshape(xx.shape)
+    
+    plt.figure(figsize=(10, 8))
+    plt.contourf(xx, yy, Z, alpha=0.3, cmap='viridis')
+    scatter = plt.scatter(X_2d[:, 0], X_2d[:, 1], c=y, 
+                          edgecolor='k', marker='o', cmap='viridis')
+    plt.legend(*scatter.legend_elements(), title="Classes")
+    plt.title('Decision Boundary')
+    plt.xlabel(feature_names[0])
+    plt.ylabel(feature_names[1])
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_prediction_distribution(y_pred_proba, y_true=None, save_path='plots/prediction_distribution.png'):
+    """Plot distribution of prediction probabilities.
+    
+    Args:
+        y_pred_proba: Prediction probabilities from model
+        y_true: Optional true labels for coloring
+        save_path: Path to save the plot
+    """
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    plt.figure(figsize=(10, 6))
+    
+    if y_true is not None:
+        for class_val in np.unique(y_true):
+            mask = y_true == class_val
+            plt.hist(y_pred_proba[mask].flatten(), 
+                    alpha=0.5, bins=20, 
+                    label=f'Class {class_val}')
+        plt.legend()
+    else:
+        plt.hist(y_pred_proba.flatten(), bins=20)
+        
+    plt.axvline(x=0.5, color='r', linestyle='--', label='Threshold = 0.5')
+    plt.xlabel('Prediction Probability')
+    plt.ylabel('Count')
+    plt.title('Distribution of Model Predictions')
+    plt.grid(True, alpha=0.3)
+    plt.savefig(save_path)
+    plt.close()
+
+def plot_threshold_sensitivity(y_true, y_scores, save_path='plots/threshold_sensitivity.png'):
+    """Plot metrics vs threshold to analyze sensitivity.
+    
+    Args:
+        y_true: True binary labels
+        y_scores: Predicted scores or probabilities
+        save_path: Path to save the plot
+    """
+    from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+    
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    
+    thresholds = np.linspace(0.01, 0.99, 50)
+    precisions = []
+    recalls = []
+    f1_scores = []
+    accuracies = []
+    
+    for threshold in thresholds:
+        y_pred = (y_scores >= threshold).astype(int)
+        precisions.append(precision_score(y_true, y_pred, zero_division=0))
+        recalls.append(recall_score(y_true, y_pred, zero_division=0))
+        f1_scores.append(f1_score(y_true, y_pred, zero_division=0))
+        accuracies.append(accuracy_score(y_true, y_pred))
+    
+    plt.figure(figsize=(12, 8))
+    plt.plot(thresholds, precisions, 'b-', label='Precision')
+    plt.plot(thresholds, recalls, 'g-', label='Recall')
+    plt.plot(thresholds, f1_scores, 'r-', label='F1 Score')
+    plt.plot(thresholds, accuracies, 'y-', label='Accuracy')
+    
+    plt.xlabel('Threshold')
+    plt.ylabel('Score')
+    plt.title('Classification Metrics vs. Threshold')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
+

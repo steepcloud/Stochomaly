@@ -10,6 +10,7 @@ from reinforcement.agents import DQNAgent, DoubleDQNAgent, DuelingDQNAgent, A2CA
 from reinforcement.policies import EpsilonGreedyPolicy, SoftmaxPolicy
 from reinforcement.training import train_rl_agent, evaluate_rl_agent
 from reinforcement.environment import AnomalyDetectionEnv
+from plot_utils import *
 import os
 
 
@@ -365,6 +366,26 @@ def main():
             print(np.round(train_predictions))
             print("\nTest Set Predictions:")
             print(np.round(test_predictions))
+
+            # convert predictions to binary for evaluation
+            y_train_pred_binary = (train_predictions > 0.5).astype(int)
+            y_test_pred_binary = (test_predictions > 0.5).astype(int)
+
+            print("\nGenerating visualizations...")
+
+            # confusion matrix
+            plot_confusion_matrix(y_test, y_test_pred_binary, save_path="plots/confusion_matrix.png")
+
+            # ROC curve
+            plot_roc_curve(y_test, test_predictions, save_path='plots/roc_curve.png')
+            
+            # prediction distribution
+            plot_prediction_distribution(test_predictions, y_test, save_path='plots/prediction_dist.png')
+            
+            # threshold sensitivity analysis
+            plot_threshold_sensitivity(y_test, test_predictions, save_path='plots/threshold_sensitivity.png')
+            
+            print("Visualization complete! Check the 'plots' directory for results.")
 
     elif args.mode == "rl":
         # Reinforcement Learning for anomaly detection
