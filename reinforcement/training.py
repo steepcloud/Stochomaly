@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
+import math
 
 def train_rl_agent(agent, environment, episodes=100, max_steps=100,
                    verbose=1, eval_interval=10, progress_callback=None):
@@ -61,8 +61,18 @@ def train_rl_agent(agent, environment, episodes=100, max_steps=100,
             else:
                 epsilon = 0.0 # for agents that don't use epsilon
 
-            print(f"Episode {episode + 1}/{episodes} | Reward: {episode_reward:.4f} | "
-                  f"Avg Reward: {avg_reward:.4f} | Epsilon: {epsilon:.4f}")
+            try:
+                reward_display = 0.0 if episode_reward is None else float(episode_reward)
+                avg_reward_display = 0.0 if avg_reward is None else float(avg_reward)
+            except:
+                reward_display = 0.0
+                avg_reward_display = 0.0
+
+            print("Episode {}/{} | Reward: {:.4f} | Avg Reward: {:.4f} | Epsilon: {:.4f}".format(
+                episode + 1, episodes, 
+                0.0 if reward_display is None else float(reward_display),
+                0.0 if avg_reward_display is None else float(avg_reward_display),
+                0.0 if epsilon is None else float(epsilon)))
 
     if verbose > 0:
         from plot_utils import plot_learning_curve

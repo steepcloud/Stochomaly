@@ -153,8 +153,6 @@ def main():
     parser.add_argument("--rl-learning-rate", type=float, default=0.001, help="Learning rate for RL agent")
     parser.add_argument("--rl-target-update", type=int, default=10, help="Update frequency for target network")
     parser.add_argument("--rl-memory-size", type=int, default=10000, help="Size of replay buffer")
-    parser.add_argument("--rl-reward-metric", type=str, default="f1", choices=["f1", "accuracy"],
-                        help="Metric to use for rewards in anomaly detection")
     parser.add_argument("--rl-n-thresholds", type=int, default=10,
                         help="Number of thresholds for anomaly detection environment")
     parser.add_argument("--rl-threshold-range", type=str, default="0.0,1.0",

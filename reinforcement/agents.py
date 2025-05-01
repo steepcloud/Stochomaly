@@ -128,7 +128,10 @@ class DQNAgent:
             self.q_network.train(states[i].reshape(1, -1), current_q[i].reshape(1, -1))
 
         # update epsilon for exploration
-        self.policy.decay_epsilon()
+        if hasattr(self.policy, "decay_epsilon"):
+            self.policy.decay_epsilon()
+        elif hasattr(self.policy, "decay_temperature"):
+            self.policy.decay_temperature()
 
         # periodically update target network
         self.step_count += 1
@@ -187,7 +190,10 @@ class DoubleDQNAgent(DQNAgent):
             self.q_network.train(states[i].reshape(1, -1), current_q[i].reshape(1, -1))
 
         # update epsilon for exploration
-        self.policy.decay_epsilon()
+        if hasattr(self.policy, "decay_epsilon"):
+            self.policy.decay_epsilon()
+        elif hasattr(self.policy, "decay_temperature"):
+            self.policy.decay_temperature()
 
         # periodically update target network
         self.step_count += 1
@@ -203,29 +209,6 @@ class DuelingDQNAgent(DQNAgent):
                  epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995,
                  batch_size=64, update_target_every=10,
                  policy=None, memory_size=10000):
-
-        super().__init__(state_size, action_size, hidden_size,
-                         learning_rate, discount_factor,
-                         epsilon_start, epsilon_end, epsilon_decay,
-                         batch_size, update_target_every,
-                         policy, memory_size)
-
-        self.state_size = state_size
-        self.action_size = action_size
-        self.discount_factor = discount_factor
-        self.batch_size = batch_size
-        self.update_target_every = update_target_every
-        self.step_count = 0
-
-        if policy is not None:
-            self.policy = policy
-        else:
-            from reinforcement.policies import EpsilonGreedyPolicy
-            self.policy = EpsilonGreedyPolicy(
-                epsilon_start=epsilon_start,
-                epsilon_end=epsilon_end,
-                epsilon_decay=epsilon_decay
-            )
 
         from nn_core.neural_network import NeuralNetwork
 
@@ -272,6 +255,30 @@ class DuelingDQNAgent(DQNAgent):
         # placeholder for standard interface compatibility
         self.q_network = None
         self.target_network = None
+
+        super().__init__(state_size, action_size, hidden_size,
+                         learning_rate, discount_factor,
+                         epsilon_start, epsilon_end, epsilon_decay,
+                         batch_size, update_target_every,
+                         policy, memory_size)
+
+        self.state_size = state_size
+        self.action_size = action_size
+        self.discount_factor = discount_factor
+        self.batch_size = batch_size
+        self.update_target_every = update_target_every
+        self.step_count = 0
+
+        if policy is not None:
+            self.policy = policy
+        else:
+            from reinforcement.policies import EpsilonGreedyPolicy
+            self.policy = EpsilonGreedyPolicy(
+                epsilon_start=epsilon_start,
+                epsilon_end=epsilon_end,
+                epsilon_decay=epsilon_decay
+            )
+
 
         self._update_target_network()
 
@@ -350,7 +357,10 @@ class DuelingDQNAgent(DQNAgent):
             self.advantage_network.train(state_i, target_adv.reshape(1, -1))
 
         # update epsilon for exploration
-        self.policy.decay_epsilon()
+        if hasattr(self.policy, "decay_epsilon"):
+            self.policy.decay_epsilon()
+        elif hasattr(self.policy, "decay_temperature"):
+            self.policy.decay_temperature()
 
         # periodically update target network
         self.step_count += 1
