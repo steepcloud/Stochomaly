@@ -70,9 +70,7 @@ python cli.py --mode nn --dataset_name breast_cancer --scaler minmax --train --e
 python cli.py --mode rl --dataset_name wine --rl-agent a2c --rl-episodes 300  --rl-max-steps 150 --rl-learning-rate 0.001 --rl-reward-metric balanced_accuracy
 ```
 
-```
 > **Note:** When using multi-class datasets like Wine with anomaly detection, the evaluation reward metric (balanced_accuracy) may show high performance (97%) while the anomaly detection accuracy appears low. This is because multi-class datasets don't naturally fit the anomaly detection paradigm. For true anomaly detection scenarios, binary datasets like breast cancer will show more consistent metrics.
-```
 
 ### Feature Engineering
 
