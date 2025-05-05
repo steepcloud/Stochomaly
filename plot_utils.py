@@ -21,9 +21,12 @@ def plot_loss(loss_history, optimizer, activation, save_path="plots/training_los
 
 def plot_confusion_matrix(y_true, y_pred, save_path='plots/confusion_matrix.png'):
     """Plot confusion matrix."""
-    cm = confusion_matrix(y_true, y_pred)
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    all_labels = np.unique(np.concatenate([y_true, y_pred]))
+    cm = confusion_matrix(y_true, y_pred, labels=all_labels)
     plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=all_labels, yticklabels=all_labels)
     plt.title('Confusion Matrix')
     plt.ylabel('True Label')
     plt.xlabel('Predicted Label')
@@ -217,6 +220,8 @@ def plot_threshold_sensitivity(y_true, y_scores, save_path='plots/threshold_sens
     
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
+    possible_y_pred = [(y_scores >= t).astype(int) for t in [0.25, 0.5, 0.75]]
+    all_classes= np.unique(np.concatenate([y_true] + possible_y_pred))
     thresholds = np.linspace(0.01, 0.99, 50)
     precisions = []
     recalls = []
@@ -225,9 +230,9 @@ def plot_threshold_sensitivity(y_true, y_scores, save_path='plots/threshold_sens
     
     for threshold in thresholds:
         y_pred = (y_scores >= threshold).astype(int)
-        precisions.append(precision_score(y_true, y_pred, zero_division=0))
-        recalls.append(recall_score(y_true, y_pred, zero_division=0))
-        f1_scores.append(f1_score(y_true, y_pred, zero_division=0))
+        precisions.append(precision_score(y_true, y_pred, labels=all_classes, zero_division=0))
+        recalls.append(recall_score(y_true, y_pred, labels=all_classes, zero_division=0))
+        f1_scores.append(f1_score(y_true, y_pred, labels=all_classes, zero_division=0))
         accuracies.append(accuracy_score(y_true, y_pred))
     
     plt.figure(figsize=(12, 8))

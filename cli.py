@@ -1,4 +1,5 @@
 import argparse
+import warnings
 import numpy as np
 from trainer.train import Trainer
 from data.preprocess import load_data, preprocess_data
@@ -12,6 +13,10 @@ from reinforcement.training import train_rl_agent, evaluate_rl_agent
 from reinforcement.environment import AnomalyDetectionEnv
 from plot_utils import *
 import os
+
+
+warnings.filterwarnings("ignore", message="A single label was found")
+warnings.filterwarnings("ignore", message="y_pred contains classes not in y_true")
 
 
 def create_agent(agent_type, state_size, action_size, **kwargs):
