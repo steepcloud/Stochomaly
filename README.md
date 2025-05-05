@@ -69,14 +69,6 @@ python cli.py --mode nn --dataset_name breast_cancer --scaler minmax --train --e
 # Train on wine dataset using A2C agent
 python cli.py --mode rl --dataset_name wine --rl-agent a2c --rl-episodes 300  --rl-max-steps 150 --rl-learning-rate 0.001 --rl-reward-metric balanced_accuracy
 ```
-Based on the results with `--rl-reward-metric balanced_accuracy`, I can see the warning filters are working correctly! The warnings no longer appear in the output.
-
-Looking at the results, there's an interesting pattern:
-- Training rewards are relatively low (~16% average)
-- Evaluation reward is excellent (97%)
-- But anomaly detection accuracy is 0%
-
-This perfectly illustrates the challenge of applying anomaly detection to multi-class datasets like Wine. Let me update your README with a note about this:
 
 ```markdown
 ### Reinforcement Learning for Multi-Class Data
