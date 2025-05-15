@@ -11,3 +11,4 @@ __pycache__
 *.png
 **/*.png
 plots/*.png
+.vscode/

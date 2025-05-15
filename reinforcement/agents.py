@@ -428,11 +428,11 @@ class A2CAgent:
 
         # ensure valid probabilities
         action_probs = np.nan_to_num(action_probs)
-        action_probs = np.clip(action_probs, 0.0, 1.0)
+        action_probs = np.clip(action_probs, 1e-8, 1.0)
 
         prob_sum = np.sum(action_probs)
         if prob_sum <= 0:
-            action_probs = np.ones(self.action_size) / self.action_size
+            action_probs = np.ones_like(self.action_size) / self.action_size
         else:
             action_probs /= prob_sum
             
@@ -510,6 +510,16 @@ class A2CAgent:
 
             # get current policy probabilities
             action_probs = self.actor.predict(state_i)[0]
+
+            action_probs = np.nan_to_num(action_probs)
+            action_probs = np.clip(action_probs, 1e-8, 1.0)
+
+            prob_sum = np.sum(action_probs)
+
+            if prob_sum <= 0:
+                action_probs = np.ones_like(action_probs) / len(action_probs)
+            else:
+                action_probs /= prob_sum
 
             # create target probabilities by adding gradient for the selected action
             target_probs = np.copy(action_probs)

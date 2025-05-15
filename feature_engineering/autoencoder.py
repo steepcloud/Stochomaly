@@ -99,6 +99,39 @@ class Autoencoder(FeatureTransformer):
         """Reconstruct original features from encoded representation"""
         return self.decoder.predict(X_encoded)
 
+    def get_reconstruction_error(self, X):
+        """
+        Calculate the per-sample reconstruction error (MSE).
+
+        Args:
+            X: Input data (numpy array).
+
+        Returns:
+            Numpy array of reconstruction errors for each sample in X.
+        """
+        if X is None or len(X) == 0:
+            return np.array([])
+            
+        # Get latent representation
+        encoded_data = self.transform(X)
+        # Reconstruct data from latent representation
+        reconstructed_data = self.inverse_transform(encoded_data)
+
+        # Calculate Mean Squared Error for each sample
+        # (reconstructed_data - X)^2 sums over features, then mean.
+        # Or, more simply, mean of squared differences per sample.
+        if X.shape != reconstructed_data.shape:
+            raise ValueError(
+                f"Original data shape {X.shape} and reconstructed data shape {reconstructed_data.shape} do not match."
+            )
+        
+        # Calculate squared errors element-wise
+        squared_errors = np.square(X - reconstructed_data)
+        # Calculate mean squared error per sample (row-wise mean)
+        mse_per_sample = np.mean(squared_errors, axis=1)
+        
+        return mse_per_sample
+
     def get_params(self):
         """Get parameters for saving/loading"""
         params = {

@@ -6,7 +6,7 @@ class AnomalyDetectionEnv:
 
     def __init__(self, X_train, y_train=None, X_test=None, y_test=None,
                  reward_metric='f1', threshold_range=(0.0, 1.0), n_thresholds=10,
-                 use_dynamic_thresholds=False, adjustment_frequency=20):
+                 use_dynamic_thresholds=False, adjustment_frequency=20, max_steps=100):
         """
         Args:
             X_train: Training features
@@ -18,6 +18,7 @@ class AnomalyDetectionEnv:
             n_thresholds: Number of threshold steps
             use_dynamic_thresholds: Whether to dynamically adjust thresholds
             adjustment_frequency: Frequency of dynamic threshold adjustments (steps)
+            max_steps: Maximum number of steps per episode in the environment (prevents infinite episodes)
         """
         self.X_train = X_train
         self.y_train = y_train
@@ -34,7 +35,7 @@ class AnomalyDetectionEnv:
         self.current_threshold_idx = 0
         self.anomaly_scores = None
         self.current_step = 0
-        self.max_steps = 100
+        self.max_steps = max_steps
 
     def reset(self):
         """Reset environment and return initial state"""
@@ -92,16 +93,31 @@ class AnomalyDetectionEnv:
 
         # calculate anomaly score distribution features
         if self.anomaly_scores is None:
-            self.anomaly_scores = np.random.rand(len(self.X_test))
+            #self.anomaly_scores = np.random.rand(len(self.X_test))
+            raise ValueError(
+                "Anomaly scores have not been set. "
+                "Call set_anomaly_scores(scores) before reset() or agent training."
+            )
+
+        #print(f"[ENV DEBUG] _get_state: self.anomaly_scores = {self.anomaly_scores}")
+        #print(f"[ENV DEBUG] _get_state: current_threshold_idx = {self.current_threshold_idx}, threshold = {threshold}")
 
         # features about the distribution
         mean_score = np.mean(self.anomaly_scores)
         std_score = np.std(self.anomaly_scores)
+
+        if std_score == 0 and len(self.anomaly_scores) > 1:
+            pass
+            #print(f"[ENV WARNING] _get_state: std_score is 0. Anomaly scores might be identical: {self.anomaly_scores}")
+        
         ratio_above = np.mean(self.anomaly_scores > threshold)
+        #print(f"[ENV DEBUG] _get_state: mean_score={mean_score:.4f}, std_score={std_score:.4f}, ratio_above={ratio_above:.4f}")
 
         raw_state = np.array([threshold, mean_score, std_score, ratio_above])
-
-        return self.normalize_state(raw_state)
+        normalized_state = self.normalize_state(raw_state)
+        #print(f"[ENV DEBUG] _get_state: raw_state={raw_state}, normalized_state={normalized_state}")
+        
+        return normalized_state
 
     def get_state(self):
         """Public method to get the current state representation"""
@@ -112,7 +128,7 @@ class AnomalyDetectionEnv:
 
         threshold = self.thresholds[self.current_threshold_idx]
 
-        if self.y_test is None:
+        if self.y_train is None:
             # unsupervised case - enhanced reward based on threshold properties
             ratio_anomalies = np.mean(self.anomaly_scores > threshold)
 
@@ -133,9 +149,12 @@ class AnomalyDetectionEnv:
             return 0.1
         else:
             # supervised case - reward based on classification performance (enhanced metrics)
+            if self.anomaly_scores is None:
+                return 0.0
+            
             y_pred = (self.anomaly_scores > threshold).astype(int)
 
-            return self.calculate_reward(self.y_test, y_pred, metric=self.reward_metric)
+            return self.calculate_reward(self.y_train, y_pred, metric=self.reward_metric)
 
     def calculate_reward(self, y_true, y_pred, metric='f1'):
         """Enhanced reward function with multiple metrics for anomaly detection"""
@@ -180,6 +199,35 @@ class AnomalyDetectionEnv:
     def set_anomaly_scores(self, scores):
         """Set anomaly scores from external model"""
         self.anomaly_scores = scores
+    
+    def get_anomaly_scores_for_data(self, data_to_score):
+        """
+        Generates anomaly scores from the provided 'data_to_score'.
+        
+        The default mechanism assumes:
+        - If data_to_score is 1D, it's used as scores.
+        - If data_to_score is 2D, its first column (data_to_score[:, 0]) is used as scores.
+        
+        This method is intended for generating scores from new, unseen data (e.g., X_test).
+        The internally stored self.anomaly_scores (set by set_anomaly_scores) are typically
+        used during the training phase with X_train.
+        """
+        if data_to_score is None:
+            if self.anomaly_scores is None:
+                raise ValueError(
+                    "Anomaly scores are not set in the environment, and no data_to_score was provided. "
+                    "Call set_anomaly_scores() or provide data_to_score."
+                )
+            return self.anomaly_scores
+
+        if data_to_score.ndim == 1:
+            return data_to_score
+        elif data_to_score.ndim == 2 and data_to_score.shape[1] > 0:
+            return data_to_score[:, 0]
+        elif data_to_score.ndim == 2 and data_to_score.shape[1] == 0:
+            return np.array([])
+        else:
+            return np.array([])
 
     def dynamic_threshold_adjustment(self):
         """Dynamically adjust threshold based on performance history"""
